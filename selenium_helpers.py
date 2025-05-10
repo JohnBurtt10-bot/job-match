@@ -1,3 +1,4 @@
+import subprocess
 import time
 import logging
 import itertools
@@ -14,40 +15,62 @@ from config import driver, job_iterator, job_queue, stop_event, selenium_lock, j
 import pdb as pbd
 from evaluate_decision_history import evaluate_decision_history
 import config
+from selenium.webdriver.chrome.options import Options
 
 # share the same profile folder
-USER_DATA_DIR = "/path/to/shared/profile"
+USER_DATA_DIR = "/path/to/shared/profile"  # Set this to a real, writable directory
 
 def init_apply_driver():
-    # wait for the main Selenium session to be initialized
-    # retry = 0
+    # Wait for the main Selenium session to be initialized
     while not config.driver:
         logging.info("Waiting for main driver to initialize...")
         time.sleep(3)
-        # retry += 1
     main_driver = config.driver
     if not main_driver:
         raise RuntimeError("Cannot init apply driver: main webdriver not available")
 
-    # create/use an isolated profile for the apply window
-    temp_profile = os.path.join(tempfile.gettempdir(), "ww_apply_profile")
-    options = webdriver.ChromeOptions()
-    options.add_argument(f"--user-data-dir={temp_profile}")
-    options.add_argument('--disable-gpu')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
+    # Use a temp profile for the apply window to avoid profile lock
+    # temp_profile = os.path.join(tempfile.gettempdir(), "ww_apply_profile")
+    # options = webdriver.ChromeOptions()
+    # options.add_argument(f"--user-data-dir={temp_profile}")
+    # options.add_argument('--disable-gpu')
+    # options.add_argument('--no-sandbox')
+    # options.add_argument('--disable-dev-shm-usage')
+    # options.add_argument('--remote-debugging-port=9223')  # Use a different port for parallel instance
 
-    d = webdriver.Chrome(options=options)
-    d.implicitly_wait(5)
+    # d = webdriver.Chrome(options=options)
+    # d.implicitly_wait(5)
 
-    # navigate to root so we can import cookies
-    d.get("https://waterlooworks.uwaterloo.ca")
-    for ck in main_driver.get_cookies():
-        d.add_cookie(ck)
+    # # Import cookies from main driver for session sharing
+    # Set up Chrome remote debugging
+    chrome_path = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+    user_data_dir = "C:/temp/chrome-profile1"
+    remote_debugging_port = "9223"
 
-    # now load the authenticated jobs page
-    d.get("https://waterlooworks.uwaterloo.ca/myAccount/co-op/full/jobs.htm")
-    return d
+    # Launch Chrome manually
+    subprocess.Popen([
+        chrome_path,
+        f"--remote-debugging-port={remote_debugging_port}",
+        f"--user-data-dir={user_data_dir}",
+        "--new-window"
+    ])
+
+    # Wait for Chrome to start
+    time.sleep(2)
+
+    # Attach Selenium to it
+    options = Options()
+    options.debugger_address = f"localhost:{remote_debugging_port}"
+    driver = webdriver.Chrome(options=options)
+    driver.get("https://waterlooworks.uwaterloo.ca")
+    # for ck in main_driver.get_cookies():
+    #     try:
+    #         d.add_cookie(ck)
+    #     except Exception as e:
+    #         logging.debug(f"Failed to add cookie: {ck.get('name')}: {e}")
+
+    driver.get("https://waterlooworks.uwaterloo.ca/myAccount/co-op/full/jobs.htm")
+    return driver
 
 JOB_CACHE = Cache("job_cache") # Initialize diskcache
 
@@ -55,17 +78,31 @@ def load_job_cache():
     # Return the diskcache instance; it behaves like a dict.
     return JOB_CACHE
 
+def launch_chrome_instance(port, profile_dir):
+    chrome_path = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+    subprocess.Popen([
+        chrome_path,
+        f"--remote-debugging-port={port}",
+        f"--user-data-dir={profile_dir}",
+        "--new-window"
+    ])
+
+def connect_driver_to_chrome(port):
+    options = Options()
+    options.debugger_address = f"localhost:{port}"
+    return webdriver.Chrome(options=options)
+
 def start_selenium_session(username, password):
     global job_iterator, driver
     options = webdriver.ChromeOptions()
-    # options.add_argument("--user-data-dir=/path/to/shared/profile")
-    # ...existing options...
+    options.add_argument(f"--user-data-dir={USER_DATA_DIR}")
     options.add_argument('--disable-gpu')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--remote-debugging-port=9223')  # Main instance uses 9222
     try:
         logging.info("Initializing WebDriver...")
-        driver = webdriver.Chrome(options=options)
+        driver = connect_driver_to_chrome(9222)  # Connect to the existing Chrome instance
         driver.implicitly_wait(5)
         driver.get("https://waterlooworks.uwaterloo.ca/waterloo.htm?action=login")
         logging.info("Logging in...")

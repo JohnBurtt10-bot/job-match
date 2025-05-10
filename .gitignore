@@ -1,0 +1,143 @@
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+*.venv
+env/
+venv/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# Visual Studio Code
+.vscode/
+.history/
+
+# JetBrains IDEs
+.idea/
+*.iml
+
+# Mac system files
+*.DS_Store
+
+# Windows system files
+*.lnk
+ehthumbs.db
+Desktop.ini
+
+# Logs
+logs/
+*.log
+
+# Environment files
+.env
+.env.*
+
+# Compiled source
+*.class
+*.o
+*.so
+*.dll
+*.exe
+*.out
+
+# Coverage reports
+coverage/
+*.lcov
+
+# Misc
+*.swp
+*.swo
+*.bak
+*.tmp
+*.orig
+
+# Test output
+test-output/
+
+# Byte-compiled / optimized / DLL files
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+.installed.cfg
+*.egg
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Cache files
+cache/
+Cache/
+user_data/
+job_cache/
+job_details_cache/
+job_cache/
+
+# Ignore test output
+integration_test_output/
+
+# Ignore jobs and user data
+job_queue/
+user_decisions/
+all_job_details/
+
+# Project logs
+decisions.log
+
+# Python cache
+__pycache__/

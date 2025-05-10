@@ -81,7 +81,7 @@ user_info = {
 # Global state and thread-related globals used by Selenium helpers
 driver = None
 job_iterator = None
-job_queue = queue.PriorityQueue(maxsize=40)
+job_queue = queue.PriorityQueue(maxsize=15)
 apply_to_job_queue = queue.Queue()          # NEW: queue for apply requests
 job_counter = itertools.count()  # For tie-breaking in job queue
 processing_thread = None

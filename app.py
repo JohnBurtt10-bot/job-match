@@ -126,28 +126,32 @@ def accepted_jobs():
     return jsonify(accepted)
 
 def run_app():
-    global stop_event, processing_thread
-    from threading import Thread
-    if start_selenium_session(WATERLOOWORKS_USERNAME, WATERLOOWORKS_PASSWORD):
-        stop_event.clear()
-        processing_thread = threading.Thread(
-            target=fetch_and_process_jobs,
-            args=(evaluate_job_fit,),
-            daemon=True
-        )
-        processing_thread.start()
-        # NEW: start the apply‐worker
-        Thread(
-            target=process_apply_queue,
-            args=(apply_to_job_queue,),
-            daemon=True
-        ).start()
-    else:
-        logging.error("Failed to initialize Selenium. Job processing will not start.")
-        job_queue.put((101, {"message": "Error: Failed to connect to WaterlooWorks."}))
-        stop_event.set()
+    # global stop_event, processing_thread
+    # from threading import Thread
+    # if start_selenium_session(WATERLOOWORKS_USERNAME, WATERLOOWORKS_PASSWORD):
+    #     stop_event.clear()
+    #     processing_thread = threading.Thread(
+    #         target=fetch_and_process_jobs,
+    #         args=(evaluate_job_fit,),
+    #         daemon=True
+    #     )
+    #     processing_thread.start()
+    #     # NEW: start the apply‐worker
+    #     Thread(
+    #         target=process_apply_queue,
+    #         args=(apply_to_job_queue,),
+    #         daemon=True
+    #     ).start()
+    # else:
+    #     logging.error("Failed to initialize Selenium. Job processing will not start.")
+    #     job_queue.put((101, {"message": "Error: Failed to connect to WaterlooWorks."}))
+    #     stop_event.set()
     logging.info("Starting Flask server on http://127.0.0.1:5000")
+    # try:
     app.run(host='127.0.0.1', port=5000, debug=False, use_reloader=False)
+    # except KeyboardInterrupt:
+    #     logging.info("Flask server stopped by user.")
+    # except Exception as e:
 
 def cleanup():
     from config import driver

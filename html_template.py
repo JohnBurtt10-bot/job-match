@@ -95,7 +95,14 @@ HTML_TEMPLATE = """
 
             if (data.job_details) {
                 currentJobData = data; // Store current job data
-                jobTitleH2.textContent = escapeHtml(data.job_details['Job Title'] || 'Job Details'); // Update title
+                // Add company to title if available
+                let title = escapeHtml(data.job_details['title'] || 'Job Details');
+                let company = data.job_details['company'] ? escapeHtml(data.job_details['company']) : '';
+                if (company) {
+                    jobTitleH2.textContent = `${title} @ ${company}`;
+                } else {
+                    jobTitleH2.textContent = title;
+                }
                 let detailsHtml = '';
 
                 // Display AI Evaluation First (if available)
