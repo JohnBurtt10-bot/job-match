@@ -1,25 +1,5 @@
-import subprocess
-import time
 import logging
-import itertools
-import threading
-import os
-import tempfile
-from diskcache import Cache
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import NoSuchElementException, TimeoutException, StaleElementReferenceException
-from config import driver, job_iterator, job_queue, stop_event, selenium_lock, job_counter, WATERLOOWORKS_USERNAME, WATERLOOWORKS_PASSWORD, user_info, user_decisions, decisions_lock, served_job_evaluations, served_job_lock, all_job_details
-import pdb as pbd
-from evaluate_decision_history import evaluate_decision_history
-import config
-from selenium.webdriver.chrome.options import Options
 
-
-
-# 'Compatibility score out of 100: X, Salary in CAD: Y, Category: Z'\n\n"
 def extract_score_salary_category(evaluation_text: str) -> tuple:
     """Extracts the score, salary, and category from the evaluation text."""
     if not evaluation_text:

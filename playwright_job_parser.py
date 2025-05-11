@@ -19,24 +19,23 @@ JOBS_URL = "https://waterlooworks.uwaterloo.ca/myAccount/co-op/full/jobs.htm"
 # Add a global queue for DUO codes
 duo_code_queue = queue.Queue()
 
-def evaluate_job_fit(id, job, job_counter_local):
-    with decisions_lock: # Access decisions safely
-        current_decision_history = list(user_decisions)
+def evaluate_job_fit(id, job, job_counter_local, username):
+    # Use per-user lock and decisions
+    with decisions_lock[username]:
+        current_decision_history = list(user_decisions[username])
 
         if len(current_decision_history) > 3:
             decision_history_evaluation = evaluate_decision_history(current_decision_history)
-
         else:
             decision_history_evaluation = ""
 
         ai_evaluation_with_score = evaluation.evaluate_job_fit(job, user_info, decision_history_evaluation)
-        score, salary, cateogry = extract_score_salary_category(ai_evaluation_with_score) # Score extracted from original
+        score, salary, cateogry = extract_score_salary_category(ai_evaluation_with_score)
         priority = 100 - score
         job['salary'] = salary
         job['category'] = cateogry
-        all_job_details[id] = job
+        all_job_details[username][id] = job
 
-        # Remove score line before putting into queue for user display and history
         ai_evaluation_for_user = remove_score_salary_category(ai_evaluation_with_score)
 
         job_data_to_queue = {
@@ -44,9 +43,9 @@ def evaluate_job_fit(id, job, job_counter_local):
             "job_details": job,
             "ai_evaluation": ai_evaluation_for_user,
         }
-        job_cnt = next(job_counter_local) # Use local counter if defined, else global job_counter
-        job_queue.put((priority, job_cnt, job_data_to_queue))
-        logging.info(f"Job '{job.get('title', 'N/A')}' (ID: {id}) added to queue with priority {priority}. Evaluation for user will not show score. Queue size: {job_queue.qsize()}")
+        job_cnt = next(job_counter_local)
+        job_queue[username].put((priority, job_cnt, job_data_to_queue))
+        logging.info(f"Job '{job.get('title', 'N/A')}' (ID: {id}) added to queue with priority {priority}. Evaluation for user will not show score. Queue size: {job_queue[username].qsize()}")
 
 
 async def extract_job_details(page, row):
@@ -122,9 +121,9 @@ async def goto_jobs_page(page, page_num):
             await page.wait_for_timeout(1000)  # Wait for table to update
             return
         
-def cleanup(ai_thread, apply_thread, browser):
+def cleanup(ai_thread, apply_thread, browser, username):
     logging.info("Initiating cleanup...")
-    stop_event.set()
+    stop_event[username].set()
     # if browser:
     #     logging.info("Quitting WebDriver...")
     #     try:
@@ -152,33 +151,30 @@ def cleanup(ai_thread, apply_thread, browser):
     logging.info("Cleanup complete.")
         
 
-def start_ai_evaluation_worker(jobs):
+def start_ai_evaluation_worker(jobs, username):
     def run():
-        asyncio.run(ai_evaluation_worker_async(jobs))
+        asyncio.run(ai_evaluation_worker_async(jobs, username))
     thread = threading.Thread(target=run, daemon=True)
     thread.start()
     return thread
 
-async def ai_evaluation_worker_async(jobs):
+async def ai_evaluation_worker_async(jobs, username):
     job_counter_local = iter(range(1000, 10000))  # Local job counter for this thread
     for job_id, job in jobs.items():
-        while job_queue.full() and not stop_event.is_set():
+        while job_queue[username].full() and not stop_event[username].is_set():
             await asyncio.sleep(0.1)
-        await asyncio.to_thread(evaluate_job_fit, job_id, job, job_counter_local)
+        await asyncio.to_thread(evaluate_job_fit, job_id, job, job_counter_local, username)
 
 async def main(username, password, login_states=None):
-    job_details_cache = Cache("job_details_cache")
+    job_details_cache = Cache(f"job_details_cache_{username}")
     async with async_playwright() as p:
-        # use user data dir to persist login session
-        user_data_dir = "user_data"
-        # Check if user data dir exists, if not create it
+        # Use a unique user data dir for each user
+        user_data_dir = f"user_data_{username}"
         import os
         if not os.path.exists(user_data_dir):
             os.makedirs(user_data_dir)
-        # Launch browser with user data dir
-        # browser = await p.chromium.launch_persistent_context(user_data_dir, headless=False)
-        browser = await p.chromium.launch(headless=False)
-        context = await browser.new_context()
+        # Launch browser with user-specific user data dir
+        browser = await p.chromium.launch_persistent_context(user_data_dir, headless=True)
         context = browser  # Use the persistent context directly
         page = await context.new_page()
         await page.goto("https://waterlooworks.uwaterloo.ca/waterloo.htm?action=login")
@@ -266,25 +262,38 @@ async def main(username, password, login_states=None):
 
         print(f"Extracted {len(jobs)} jobs")
 
-        # start AI evaluation worker as a task on a different thread
-        ai_thread = start_ai_evaluation_worker(jobs)
+        # Ensure per-user structures exist
+        if username not in job_queue:
+            job_queue[username] = queue.PriorityQueue(maxsize=15)
+        if username not in stop_event:
+            stop_event[username] = threading.Event()
+        if username not in user_decisions:
+            user_decisions[username] = []
+        if username not in decisions_lock:
+            decisions_lock[username] = threading.Lock()
+        if username not in all_job_details:
+            all_job_details[username] = {}
+        if username not in apply_to_job_queue:
+            apply_to_job_queue[username] = queue.Queue()
+
+        ai_thread = start_ai_evaluation_worker(jobs, username)
 
         # Start async apply-to-job worker on the main thread (not as a background task)
         try:
-            await apply_to_job_worker(context)
+            await apply_to_job_worker(context, username)
         except KeyboardInterrupt:
             logging.info("KeyboardInterrupt received. Shutting down...")
         finally:
-            cleanup(ai_thread, None, browser)
+            cleanup(ai_thread, None, browser, username)
 
 # Start apply-to-job thread
-async def apply_to_job_worker(context):
-    while not stop_event.is_set():
+async def apply_to_job_worker(context, username):
+    while not stop_event[username].is_set():
         # try:
             # Use asyncio.to_thread to avoid blocking the event loop with a blocking queue
-            job_id = await asyncio.to_thread(apply_to_job_queue.get, 2)
+            job_id = await asyncio.to_thread(apply_to_job_queue[username].get, 2)
             await apply_to_job(job_id, context)
-            await asyncio.to_thread(apply_to_job_queue.task_done)
+            await asyncio.to_thread(apply_to_job_queue[username].task_done)
         # except Exception:
         #     continue
 

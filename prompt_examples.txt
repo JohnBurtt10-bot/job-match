@@ -1,7 +1,0 @@
-Instead of saying "The job is located in Hamilton, Ontario, which is close to the user's desired location in the USA, although not exactly in the same region"
-Say "Located in Hamilton, Ontario which is not in the USA."
-
-Instead of saying "The job provides a 4-month work term, which matches the user's co-op duration expectation."
-Say The job provides a 4-month work term
-
-

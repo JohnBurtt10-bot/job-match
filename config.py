@@ -81,43 +81,41 @@ user_info = {
 
 # Global state and thread-related globals used by Selenium helpers
 driver = None
-job_iterator = None
-job_queue = queue.PriorityQueue(maxsize=15)
-apply_to_job_queue = queue.Queue()          # NEW: queue for apply requests
-job_counter = itertools.count()  # For tie-breaking in job queue
-processing_thread = None
-stop_event = threading.Event()
-selenium_lock = threading.Lock()
-user_decisions = []
-decisions_lock = threading.Lock()
-MAX_DECISION_HISTORY = 100
-served_job_evaluations = {} # Stores {job_id: ai_evaluation} for jobs sent to frontend
-served_job_lock = threading.Lock() # Lock for accessing served_job_evaluations
-all_job_details = {} # Stores all job details for the current session
 
-main_window = None                          # NEW: record the original window handle
+# Replace single global state with per-user dictionaries
+job_queue = {}                # {username: PriorityQueue}
+apply_to_job_queue = {}       # {username: Queue}
+job_counter = {}              # {username: itertools.count()}
+processing_thread = {}        # {username: Thread}
+stop_event = {}               # {username: threading.Event()}
+user_decisions = {}           # {username: list}
+decisions_lock = {}           # {username: threading.Lock()}
+served_job_evaluations = {}   # {username: dict}
+served_job_lock = {}          # {username: threading.Lock()}
+all_job_details = {}          # {username: dict}
+main_window = {}              # {username: window_handle}
+
+MAX_DECISION_HISTORY = 10
 
 USER_DECISIONS_FILE = "user_decisions.json"
 
-def load_user_decisions():
-    if os.path.exists(USER_DECISIONS_FILE):
+def load_user_decisions(username):
+    user_file = f"user_decisions_{username}.json"
+    if os.path.exists(user_file):
         try:
-            with open(USER_DECISIONS_FILE, "r", encoding="utf-8") as f:
+            with open(user_file, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
-            logging.warning(f"Failed to load user_decisions: {e}")
+            logging.warning(f"Failed to load user_decisions for {username}: {e}")
     return []
 
-def save_user_decisions(user_decisions):
+def save_user_decisions(username, user_decisions_list):
+    user_file = f"user_decisions_{username}.json"
     try:
-        with open(USER_DECISIONS_FILE, "w", encoding="utf-8") as f:
-            json.dump(user_decisions, f, ensure_ascii=False, indent=2)
+        with open(user_file, "w", encoding="utf-8") as f:
+            json.dump(user_decisions_list, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        logging.warning(f"Failed to save user_decisions: {e}")
-
-user_decisions = load_user_decisions()
-decisions_lock = threading.Lock()
-MAX_DECISION_HISTORY = 100
+        logging.warning(f"Failed to save user_decisions for {username}: {e}")
 
 # Flask app and the HTML template
 app = Flask(__name__)

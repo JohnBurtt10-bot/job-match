@@ -8,7 +8,7 @@ from config import (
     served_job_evaluations, served_job_lock, all_job_details
 )
 from evaluation import evaluate_job_fit
-from queue import Empty
+from queue import Empty, Queue
 from playwright_job_parser import duo_code_queue
 from threading import Thread
 import asyncio
@@ -21,6 +21,10 @@ app.secret_key = "your_secret_key_here"  # Replace with a secure random key
 
 # Temporary in-memory store for login state (for demo; use session/db in prod)
 login_states = {}
+
+# Add after other global variables
+playwright_queue = Queue()  # Queue for new users to be processed by Playwright
+playwright_thread = None
 
 @app.route('/')
 def index():
@@ -144,7 +148,30 @@ def index():
         </body>
         </html>
         """)
+    
+    # If user is logged in but not in login_states, start their Playwright process
+    username = session.get("username")
+    password = session.get("password")
+    if username and password and username not in login_states:
+        login_states[username] = {"ready": False}
+        playwright_queue.put((username, password))
+    
     return render_template_string(HTML_TEMPLATE)
+
+def start_playwright_worker():
+    def run():
+        while True:
+            try:
+                username, password = playwright_queue.get()
+                asyncio.run(playwright_main(username, password, login_states))
+                playwright_queue.task_done()
+            except Exception as e:
+                logging.error(f"Error in Playwright worker: {e}", exc_info=True)
+                continue
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    return thread
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -160,9 +187,8 @@ def login():
     # Mark login as not ready yet
     login_states[username] = {"ready": False}
 
-    def run_playwright_backend():
-        asyncio.run(playwright_main(username, password, login_states))
-    Thread(target=run_playwright_backend, daemon=True).start()
+    # Add user to Playwright queue
+    playwright_queue.put((username, password))
 
     return jsonify({"status": "ok"})
 
@@ -202,14 +228,15 @@ def get_duo_code():
 
 @app.route('/get_job')
 def get_job():
-    global job_queue, processing_thread, stop_event, served_job_evaluations, served_job_lock
-    # if not processing_thread or not processing_thread.is_alive():
-    #      if not stop_event.is_set():
-    #          logging.error("Processing thread is not active unexpectedly.")
-    #          return jsonify({"message": "Error: Backend processing thread stopped."}), 500
+    username = session.get("username")
+    if not username:
+        return jsonify({"message": "Not logged in"}), 401
+
+    if username not in job_queue:
+        return jsonify({"message": "No job queue found for user"}), 404
 
     try:
-        priority, _, job_data = job_queue.get_nowait()
+        priority, _, job_data = job_queue[username].get_nowait()
         job_id = job_data.get('job_id')
         ai_evaluation = job_data.get('ai_evaluation') # Get evaluation from the job data
 
@@ -221,19 +248,19 @@ def get_job():
                 served_job_evaluations[job_id] = ai_evaluation
                 logging.debug(f"Stored evaluation for job {job_id}. Served count: {len(served_job_evaluations)}")
 
-        job_queue.task_done()
+        job_queue[username].task_done()
         if "message" in job_data and job_data["message"] == "No more jobs found.":
-            stop_event.set()
+            stop_event[username].set()
         return jsonify(job_data)
     except Empty:
-        if stop_event.is_set() and job_queue.empty():
+        if stop_event[username].is_set() and job_queue[username].empty():
             logging.info("Processing finished and queue empty.")
             return jsonify({"message": "All jobs processed."})
         else:
             logging.info("Job queue is empty, waiting for processor...")
             return jsonify({"message": "Processing jobs, please wait..."}), 202
     except Exception as e:
-        logging.error(f"Error retrieving job: {e}", exc_info=True) # Added exc_info for better debugging
+        logging.error(f"Error retrieving job: {e}", exc_info=True)
         return jsonify({"message": "Internal server error"}), 500
 
 @app.route('/decision', methods=['POST'])
@@ -308,51 +335,21 @@ def accepted_jobs():
     return jsonify(accepted)
 
 def run_app():
-    # global stop_event, processing_thread
-    # from threading import Thread
-    # if start_selenium_session(WATERLOOWORKS_USERNAME, WATERLOOWORKS_PASSWORD):
-    #     stop_event.clear()
-    #     processing_thread = threading.Thread(
-    #         target=fetch_and_process_jobs,
-    #         args=(evaluate_job_fit,),
-    #         daemon=True
-    #     )
-    #     processing_thread.start()
-    #     # NEW: start the apply‐worker
-    #     Thread(
-    #         target=process_apply_queue,
-    #         args=(apply_to_job_queue,),
-    #         daemon=True
-    #     ).start()
-    # else:
-    #     logging.error("Failed to initialize Selenium. Job processing will not start.")
-    #     job_queue.put((101, {"message": "Error: Failed to connect to WaterlooWorks."}))
-    #     stop_event.set()
+    global playwright_thread
     logging.info("Starting Flask server on http://127.0.0.1:5000")
-    # try:
+    
+    # Start Playwright worker thread
+    playwright_thread = start_playwright_worker()
+    
     app.run(host='127.0.0.1', port=5000, debug=False, use_reloader=False)
-    # except KeyboardInterrupt:
-    #     logging.info("Flask server stopped by user.")
-    # except Exception as e:
 
 def cleanup():
-    from config import driver
     logging.info("Initiating cleanup...")
-    stop_event.set()
-    try:
-        if processing_thread and processing_thread.is_alive():
-            logging.info("Waiting for job processing thread to finish...")
-            processing_thread.join(timeout=15)
-            if processing_thread.is_alive():
-                logging.warning("Processing thread did not terminate gracefully.")
-    except Exception as e:
-        logging.error(f"Error waiting for processing thread: {e}")
-    if driver:
-        logging.info("Quitting WebDriver...")
-        try:
-            driver.quit()
-        except Exception as e:
-            logging.error(f"Error quitting WebDriver: {e}")
+    if playwright_thread and playwright_thread.is_alive():
+        logging.info("Waiting for Playwright worker thread to finish...")
+        playwright_thread.join(timeout=15)
+        if playwright_thread.is_alive():
+            logging.warning("Playwright worker thread did not terminate gracefully.")
     logging.info("Cleanup complete.")
 
 if __name__ == "__main__":
