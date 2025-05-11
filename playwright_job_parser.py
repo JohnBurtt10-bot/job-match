@@ -1,10 +1,10 @@
 import asyncio
 import threading
+import queue
 from playwright.async_api import async_playwright
-from app import run_app
 from evaluate_decision_history import evaluate_decision_history
 from config import (
-    job_queue, stop_event, WATERLOOWORKS_USERNAME, WATERLOOWORKS_PASSWORD,
+    job_queue, stop_event,
     user_info, user_decisions, decisions_lock, all_job_details,
     apply_to_job_queue
 )
@@ -15,6 +15,9 @@ from diskcache import Cache
 import evaluation
 
 JOBS_URL = "https://waterlooworks.uwaterloo.ca/myAccount/co-op/full/jobs.htm"
+
+# Add a global queue for DUO codes
+duo_code_queue = queue.Queue()
 
 def evaluate_job_fit(id, job, job_counter_local):
     with decisions_lock: # Access decisions safely
@@ -163,7 +166,7 @@ async def ai_evaluation_worker_async(jobs):
             await asyncio.sleep(0.1)
         await asyncio.to_thread(evaluate_job_fit, job_id, job, job_counter_local)
 
-async def main():
+async def main(username, password, login_states=None):
     job_details_cache = Cache("job_details_cache")
     async with async_playwright() as p:
         # use user data dir to persist login session
@@ -173,15 +176,15 @@ async def main():
         if not os.path.exists(user_data_dir):
             os.makedirs(user_data_dir)
         # Launch browser with user data dir
-        browser = await p.chromium.launch_persistent_context(user_data_dir, headless=False)
-        # browser = await p.chromium.launch(headless=False)
-        # context = await browser.new_context()
+        # browser = await p.chromium.launch_persistent_context(user_data_dir, headless=False)
+        browser = await p.chromium.launch(headless=False)
+        context = await browser.new_context()
         context = browser  # Use the persistent context directly
         page = await context.new_page()
         await page.goto("https://waterlooworks.uwaterloo.ca/waterloo.htm?action=login")
         # # Wait for username input and enter username
         await page.wait_for_selector("#userNameInput", state="visible", timeout=15000)
-        await page.fill("#userNameInput", WATERLOOWORKS_USERNAME)
+        await page.fill("#userNameInput", username)  # Use provided username
 
         # Click next button
         await page.wait_for_selector("#nextButton", state="attached", timeout=10000)
@@ -189,17 +192,31 @@ async def main():
 
         # Wait for password input and enter password
         await page.wait_for_selector("#passwordInput", state="attached", timeout=100000)
-        await page.fill("#passwordInput", WATERLOOWORKS_PASSWORD)
+        await page.fill("#passwordInput", password)  # Use provided password
 
         # Click submit button
         await page.wait_for_selector("#submitButton", state="attached", timeout=10000)
         await page.click("#submitButton")
 
+        # Wait for DUO verification code and send to frontend via queue
+        await page.wait_for_selector("div.verification-code", state="attached", timeout=10000)
+        verification_code_el = await page.query_selector("div.verification-code")
+        verification_code = await verification_code_el.inner_text() if verification_code_el else None
+        if verification_code:
+            duo_code_queue.put(verification_code)  # Make code available to Flask
+
+        # <div class="row display-flex align-flex-justify-content-center verification-code">887</div>
+        # parse code
+        await page.wait_for_selector("div.verification-code", state="attached", timeout=10000)
+        verification_code = await page.query_selector("div.verification-code")
+
         # # Click trust browser button
-        # await page.wait_for_selector("#trust-browser-button", state="attached", timeout=15000)
-        # await page.click("#trust-browser-button")
+        await page.wait_for_selector("#trust-browser-button", state="attached", timeout=15000)
+        await page.click("#trust-browser-button")
         
         await page.wait_for_selector("a.items.active", state="attached", timeout=10000)
+        if login_states is not None:
+            login_states[username]["ready"] = True
 
         # sleep for 5 seconds to allow the page to load
         # await page.wait_for_timeout(1000)
@@ -275,5 +292,9 @@ async def apply_to_job_worker(context):
 if __name__ == "__main__":
     app_thread = threading.Thread(target=run_app, daemon=True)
     app_thread.start()
-    asyncio.run(main())
+    # You must pass username and password from your Flask backend/session
+    # Example: asyncio.run(main(session["username"], session["password"]))
+    # For now, just show the function signature change:
+    # asyncio.run(main(username, password))
+    pass
 

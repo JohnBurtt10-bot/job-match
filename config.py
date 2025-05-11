@@ -3,6 +3,7 @@ import logging
 import queue
 import itertools
 import threading
+import json
 from flask import Flask
 from html_template import HTML_TEMPLATE
 
@@ -95,6 +96,28 @@ served_job_lock = threading.Lock() # Lock for accessing served_job_evaluations
 all_job_details = {} # Stores all job details for the current session
 
 main_window = None                          # NEW: record the original window handle
+
+USER_DECISIONS_FILE = "user_decisions.json"
+
+def load_user_decisions():
+    if os.path.exists(USER_DECISIONS_FILE):
+        try:
+            with open(USER_DECISIONS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logging.warning(f"Failed to load user_decisions: {e}")
+    return []
+
+def save_user_decisions(user_decisions):
+    try:
+        with open(USER_DECISIONS_FILE, "w", encoding="utf-8") as f:
+            json.dump(user_decisions, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logging.warning(f"Failed to save user_decisions: {e}")
+
+user_decisions = load_user_decisions()
+decisions_lock = threading.Lock()
+MAX_DECISION_HISTORY = 100
 
 # Flask app and the HTML template
 app = Flask(__name__)

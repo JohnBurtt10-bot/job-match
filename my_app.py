@@ -10,9 +10,6 @@ from config import (
 from evaluation import evaluate_job_fit
 from queue import Empty
 from playwright_job_parser import duo_code_queue
-from threading import Thread
-import asyncio
-from playwright_job_parser import main as playwright_main
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]: %(message)s")
 
@@ -27,122 +24,11 @@ def index():
     # Show login page if not logged in
     if not session.get("logged_in"):
         return render_template_string("""
-        <html>
-        <head>
-            <title>Login - WaterlooWorks Job Parser</title>
-            <style>
-                body { font-family: Arial, sans-serif; background: #f4f6fa; }
-                .login-container {
-                    background: #fff;
-                    max-width: 350px;
-                    margin: 80px auto;
-                    padding: 32px 28px 24px 28px;
-                    border-radius: 10px;
-                    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-                }
-                h2 { text-align: center; color: #2a3b5d; }
-                input[type=text], input[type=password] {
-                    width: 100%;
-                    padding: 10px;
-                    margin: 8px 0 16px 0;
-                    border: 1px solid #cfd8dc;
-                    border-radius: 5px;
-                    box-sizing: border-box;
-                }
-                button {
-                    width: 100%;
-                    background: #1976d2;
-                    color: white;
-                    padding: 10px;
-                    border: none;
-                    border-radius: 5px;
-                    font-size: 16px;
-                    cursor: pointer;
-                }
-                button:disabled { background: #90caf9; }
-                .error { color: #d32f2f; text-align: center; margin-bottom: 10px; }
-                .duo-code { font-size: 22px; color: #1976d2; margin: 12px 0; }
-            </style>
-        </head>
-        <body>
-            <div class="login-container">
-                <h2>WaterlooWorks Login</h2>
-                <div id="error" class="error"></div>
-                <form id="loginForm">
-                    <input name="username" id="username" placeholder="Username" required>
-                    <input name="password" id="password" type="password" placeholder="Password" required>
-                    <button id="loginBtn" type="submit">Login</button>
-                </form>
-                <div id="waitSection" style="display:none; text-align:center; margin-top:24px;">
-                    <div>Logging in... Please complete DUO on your phone if prompted.</div>
-                    <div id="waitSpinner" style="font-size:32px; margin:16px 0;">⏳</div>
-                    <div id="duoCode" class="duo-code"></div>
-                </div>
-            </div>
-            <script>
-                const loginForm = document.getElementById('loginForm');
-                const waitSection = document.getElementById('waitSection');
-                const errorDiv = document.getElementById('error');
-                const duoCodeDiv = document.getElementById('duoCode');
-                let loginPolling = null;
-                let duoPolling = null;
-
-                loginForm.onsubmit = function(e) {
-                    e.preventDefault();
-                    errorDiv.textContent = "";
-                    document.getElementById('loginBtn').disabled = true;
-                    fetch('/login', {
-                        method: 'POST',
-                        body: new FormData(loginForm)
-                    }).then(resp => resp.json())
-                    .then(data => {
-                        if (!data) return;
-                        if (data.status === "error") {
-                            errorDiv.textContent = data.message || "Login failed.";
-                            document.getElementById('loginBtn').disabled = false;
-                        } else {
-                            loginForm.style.display = "none";
-                            waitSection.style.display = "";
-                            pollLoginStatus();
-                            pollDuoCode();
-                        }
-                    }).catch(() => {
-                        errorDiv.textContent = "Login failed.";
-                        document.getElementById('loginBtn').disabled = false;
-                    });
-                };
-
-                function pollLoginStatus() {
-                    loginPolling = setInterval(() => {
-                        fetch('/login_status').then(resp => resp.json())
-                        .then(data => {
-                            if (data && data.status === "ready") {
-                                clearInterval(loginPolling);
-                                clearInterval(duoPolling);
-                                window.location = "/";
-                            }
-                        });
-                    }, 1500);
-                }
-
-                function pollDuoCode() {
-                    duoCodeDiv.textContent = "";
-                    duoPolling = setInterval(() => {
-                        fetch('/duo_code').then(resp => {
-                            if (resp.status === 200) {
-                                return resp.json();
-                            }
-                        }).then(data => {
-                            if (data && data.duo_code) {
-                                duoCodeDiv.textContent = "DUO Code: " + data.duo_code;
-                                // keep polling in case code changes
-                            }
-                        });
-                    }, 1500);
-                }
-            </script>
-        </body>
-        </html>
+        <form method="POST" action="/login">
+            <input name="username" placeholder="Username" required>
+            <input name="password" type="password" placeholder="Password" required>
+            <button type="submit">Login</button>
+        </form>
         """)
     return render_template_string(HTML_TEMPLATE)
 
@@ -153,28 +39,28 @@ def login():
     if not username or not password:
         return jsonify({"status": "error", "message": "Missing credentials"}), 400
 
+    # Store credentials in session (or a secure backend store)
     session["logged_in"] = True
     session["username"] = username
     session["password"] = password
 
-    # Mark login as not ready yet
-    login_states[username] = {"ready": False}
+    # Start playwright login process (pseudo-code)
+    # This should be async and handle DUO if needed
+    duo_required = False
+    try:
+        # Replace this with actual playwright login logic
+        # duo_required = playwright_login(username, password)
+        # If DUO is required, set duo_required = True
+        pass
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-    def run_playwright_backend():
-        asyncio.run(playwright_main(username, password, login_states))
-    Thread(target=run_playwright_backend, daemon=True).start()
-
-    return jsonify({"status": "ok"})
-
-@app.route('/login_status')
-def login_status():
-    username = session.get("username")
-    print(f"Login status check for {username}: {login_states.get(username)}")
-    if not username or username not in login_states:
-        return jsonify({"status": "not_logged_in"})
-    if login_states[username].get("ready"):
-        return jsonify({"status": "ready"})
-    return jsonify({"status": "waiting"})
+    if duo_required:
+        login_states[username] = {"duo_pending": True}
+        return jsonify({"status": "duo_required"})
+    else:
+        login_states[username] = {"duo_pending": False}
+        return redirect(url_for('index'))
 
 @app.route('/duo', methods=['POST'])
 def duo():

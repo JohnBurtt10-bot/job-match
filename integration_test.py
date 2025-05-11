@@ -6,7 +6,7 @@ import time
 from evaluation import evaluate_job_fit
 from config import user_info, job_queue, decisions_lock, user_decisions, all_job_details
 from itertools import count
-from app import app
+from my_app import app
 from selenium_helpers import extract_score_salary_category, remove_score_salary_category
 
 logging.basicConfig(level=logging.INFO)
