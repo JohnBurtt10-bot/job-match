@@ -133,7 +133,7 @@ integration_test_output/
 
 # Ignore jobs and user data
 job_queue/
-user_decisions/
+user_decisions_*/
 all_job_details/
 
 # Project logs
