@@ -15,8 +15,8 @@ import asyncio
 from src.core.playwright_job_parser import main as playwright_main
 import shutil
 import os
-from src.web.templates.login_template import LOGIN_TEMPLATE
-from src.web.templates.index_template import HTML_TEMPLATE
+from login_template import LOGIN_TEMPLATE
+from index_template import HTML_TEMPLATE
 import re
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]: %(message)s")
