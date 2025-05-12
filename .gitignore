@@ -127,6 +127,7 @@ user_data/
 job_cache/
 job_details_cache/
 job_cache/
+job_details_*
 
 # Ignore test output
 integration_test_output/
@@ -141,3 +142,7 @@ decisions.log
 
 # Python cache
 __pycache__/
+
+# User data and job details directories
+user_data/
+job_details/
