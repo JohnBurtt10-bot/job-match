@@ -1,18 +1,10 @@
 import os
 import logging
-import queue
-import itertools
-import threading
 import json
 from flask import Flask
 
 # Logger configuration
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# Load credentials securely (replace with your method, e.g., environment variables)
-WATERLOOWORKS_USERNAME = os.environ.get("WW_USER", "jrburtt@uwaterloo.ca")
-WATERLOOWORKS_PASSWORD = os.environ.get("WW_PASS", "Birchwood718#")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
 
 
 # High Q Technologies Jan. 2025 – Apr. 2025
