@@ -32,6 +32,7 @@ login_states = {}
 # Add after other global variables
 playwright_queue = Queue()  # Queue for new users to be processed by Playwright
 playwright_thread = None
+_initialized = False
 
 def load_user_decisions_from_logs():
     """Load user decisions from log files on startup."""
@@ -74,14 +75,16 @@ def load_user_decisions_from_logs():
 # Load user decisions on startup
 load_user_decisions_from_logs()
 
-@app.before_first_request
+@app.before_request
 def initialize_app():
-    global playwright_thread
-    logging.info("Initializing application...")
-    # Start Playwright worker thread
-    playwright_thread = start_playwright_worker()
-    # Load user decisions on startup
-    load_user_decisions_from_logs()
+    global playwright_thread, _initialized
+    if not _initialized:
+        logging.info("Initializing application...")
+        # Start Playwright worker thread
+        playwright_thread = start_playwright_worker()
+        # Load user decisions on startup
+        load_user_decisions_from_logs()
+        _initialized = True
 
 @app.route('/')
 def index():
