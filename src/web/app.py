@@ -337,7 +337,14 @@ def accepted_jobs():
     return jsonify(accepted)
 
 def run_app():
-    return app
+    """Run the Flask application with proper host binding."""
+    import os
+    host = os.environ.get('FLASK_HOST', '0.0.0.0')
+    port = int(os.environ.get('FLASK_PORT', 29000))
+    debug = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    
+    logging.info(f"Starting Flask server on {host}:{port}")
+    app.run(host=host, port=port, debug=debug)
 
 def cleanup():
     logging.info("Initiating cleanup...")
@@ -376,3 +383,11 @@ def cleanup():
             del login_states[username]
     
     logging.info("Cleanup complete.")
+
+if __name__ == "__main__":
+    try:
+        run_app()
+    except KeyboardInterrupt:
+        logging.info("KeyboardInterrupt received. Shutting down...")
+    finally:
+        cleanup()
