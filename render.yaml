@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: job-match
+    env: python
+    buildCommand: |
+      pip install -r requirements.txt
+      playwright install
+      playwright install-deps
+    startCommand: python -m flask --app src.web.app:app run --host=0.0.0.0 --port=$PORT
+    envVars:
+      - key: FLASK_HOST
+        value: 0.0.0.0
+      - key: FLASK_PORT
+        value: $PORT
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+    healthCheckPath: /
+    autoDeploy: true 
