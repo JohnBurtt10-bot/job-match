@@ -172,9 +172,18 @@ async def main(username, password, login_states=None):
                         verification_code_el = await page.query_selector("div.verification-code")
                         verification_code = await verification_code_el.inner_text() if verification_code_el else None
                         if verification_code:
+                            # Clear any existing codes in the queue
+                            while not duo_code_queue[username].empty():
+                                try:
+                                    duo_code_queue[username].get_nowait()
+                                except:
+                                    pass
+                            # Put the new code in the queue
                             duo_code_queue[username].put(verification_code)
+                            logging.info(f"Put DUO code in queue for user {username}: {verification_code}")
                             if login_states is not None:
                                 login_states[username]["duo_required"] = True
+                                login_states[username]["duo_code"] = verification_code  # Store code in login state too
 
                         # Click trust browser button
                         await page.wait_for_selector("#trust-browser-button", state="attached", timeout=15000)

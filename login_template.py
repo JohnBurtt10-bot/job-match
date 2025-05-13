@@ -279,7 +279,23 @@ LOGIN_TEMPLATE = """
                         console.log("DUO required, starting DUO polling");
                         if (!isDuoRequired) {
                             isDuoRequired = true;
-                            waitMessage.textContent = "Please complete DUO on your phone";
+                            // Get the DUO code immediately when DUO is required
+                            try {
+                                console.log("Fetching initial DUO code...");
+                                const duoResponse = await fetch('/get_duo_code');
+                                const duoData = await duoResponse.json();
+                                console.log("Initial DUO code response:", duoData);
+                                if (duoData.success && duoData.code) {
+                                    console.log("Setting initial DUO code in message:", duoData.code);
+                                    waitMessage.textContent = `Please complete DUO on your phone`;
+                                } else {
+                                    console.log("No initial DUO code available");
+                                    waitMessage.textContent = "Please complete DUO on your phone";
+                                }
+                            } catch (error) {
+                                console.error('Error getting initial DUO code:', error);
+                                waitMessage.textContent = "Please complete DUO on your phone";
+                            }
                             startDuoPolling();
                         }
                     }
@@ -300,11 +316,11 @@ LOGIN_TEMPLATE = """
                     const data = await response.json();
                     
                     if (data.success && data.code) {
-                        console.log("Received DUO code:", data.code);
+                        console.log("Received DUO code in polling:", data.code);
                         duoCodeDiv.textContent = "DUO Code: " + data.code;
                         duoCodeDiv.style.display = "block";
                     } else {
-                        console.log("No DUO code yet:", data);
+                        console.log("No DUO code in polling response:", data);
                     }
                 } catch (error) {
                     console.error('Error polling DUO code:', error);

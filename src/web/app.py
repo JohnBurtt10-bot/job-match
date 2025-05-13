@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import time
 import logging
 import threading
@@ -72,6 +74,15 @@ def load_user_decisions_from_logs():
 # Load user decisions on startup
 load_user_decisions_from_logs()
 
+@app.before_first_request
+def initialize_app():
+    global playwright_thread
+    logging.info("Initializing application...")
+    # Start Playwright worker thread
+    playwright_thread = start_playwright_worker()
+    # Load user decisions on startup
+    load_user_decisions_from_logs()
+
 @app.route('/')
 def index():
     username = session.get('username')
@@ -131,16 +142,38 @@ def check_login_status():
 
 @app.route('/get_duo_code')
 def get_duo_code():
-    try:
-        code = duo_code_queue.get_nowait()
-        return jsonify({
-            'success': True,
-            'code': code
-        })
-    except:
+    username = session.get('username')
+    if not username:
         return jsonify({
             'success': False,
-            'error': 'No DUO code available'
+            'error': 'Not logged in'
+        })
+    
+    try:
+        # First try to get code from queue
+        try:
+            code = duo_code_queue[username].get_nowait()
+            return jsonify({
+                'success': True,
+                'code': code
+            })
+        except:
+            # If queue is empty, check login state
+            if username in login_states and login_states[username].get("duo_code"):
+                code = login_states[username]["duo_code"]
+                return jsonify({
+                    'success': True,
+                    'code': code
+                })
+            return jsonify({
+                'success': False,
+                'error': 'No DUO code available'
+            })
+    except Exception as e:
+        logging.error(f"Error getting DUO code: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
         })
 
 @app.route('/logout')
@@ -300,24 +333,8 @@ def accepted_jobs():
                     })
     return jsonify(accepted)
 
-
 def run_app():
-    global playwright_thread
-    logging.info("Starting Flask server on http://127.0.0.1:5000")
-    
-    # Clear any existing sessions on startup
-    # @app.before_request
-    # def clear_stale_session():
-    #     if 'username' in session:
-    #         username = session['username']
-    #         if username not in login_states:
-    #             session.clear()
-    #             return redirect(url_for('login'))
-    
-    # Start Playwright worker thread
-    playwright_thread = start_playwright_worker()
-    
-    app.run(host='127.0.0.1', port=5000, debug=False, use_reloader=False)
+    return app
 
 def cleanup():
     logging.info("Initiating cleanup...")
@@ -356,11 +373,3 @@ def cleanup():
             del login_states[username]
     
     logging.info("Cleanup complete.")
-
-if __name__ == "__main__":
-    try:
-        run_app()
-    except KeyboardInterrupt:
-        logging.info("KeyboardInterrupt received. Shutting down...")
-    finally:
-        cleanup()
