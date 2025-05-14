@@ -139,7 +139,7 @@ async def main(username, password, login_states=None):
                 # Launch browser with user-specific user data dir
                 browser = await playwright.chromium.launch_persistent_context(
                     user_data_dir, 
-                    headless=False,
+                    headless=True,
                     timeout=30000  # 30 second timeout for browser launch
                 )
                 context = browser  # Use the persistent context directly
@@ -172,6 +172,7 @@ async def main(username, password, login_states=None):
                 if status == 'dashboard':
                     logging.info("Already logged in - redirected to dashboard")
                     if login_states is not None:
+                        # Case 1: User was already logged in and redirected to dashboard
                         login_states[username] = {
                             "ready": True,
                             "error": None,
@@ -248,6 +249,7 @@ async def main(username, password, login_states=None):
                     elif status == 'success':
                         logging.info("Login successful")
                         if login_states is not None:
+                            # Case 2: User successfully logged in without DUO
                             login_states[username] = {
                                 "ready": True,
                                 "error": None,
@@ -328,6 +330,7 @@ async def main(username, password, login_states=None):
                                         if '/myAccount/dashboard.htm' in current_url:
                                             logging.info("Successfully reached dashboard")
                                             if login_states is not None:
+                                                # Case 3: User successfully reached dashboard during DUO verification
                                                 login_states[username] = {
                                                     "ready": True,
                                                     "error": None,
@@ -361,6 +364,15 @@ async def main(username, password, login_states=None):
                             if not '/myAccount/dashboard.htm' in page.url:
                                 try:
                                     await page.wait_for_url('https://waterlooworks.uwaterloo.ca/myAccount/dashboard.htm', timeout=50000)
+                                    # Update login state after successful navigation to dashboard
+                                    if login_states is not None:
+                                        # Case 4: User successfully navigated to dashboard after DUO verification
+                                        login_states[username] = {
+                                            "ready": True,
+                                            "error": None,
+                                            "duo_required": False
+                                        }
+                                        logging.info(f"Updated login state to ready for user {username} after dashboard navigation")
                                 except Exception as e:
                                     logging.error(f"Error waiting for dashboard URL: {e}")
                                     if login_states is not None:
@@ -370,6 +382,16 @@ async def main(username, password, login_states=None):
                                             "duo_required": False
                                         }
                                     return
+                            else:
+                                # If we're already at the dashboard, ensure login state is ready
+                                if login_states is not None:
+                                    # Case 5: User was already at dashboard when we checked
+                                    login_states[username] = {
+                                        "ready": True,
+                                        "error": None,
+                                        "duo_required": False
+                                    }
+                                    logging.info(f"Updated login state to ready for user {username} (already at dashboard)")
 
                         elif status == 'failed':
                             if login_states is not None:
