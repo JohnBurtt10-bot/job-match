@@ -73,18 +73,12 @@ As a student at the University of Waterloo, I noticed a persistent gap in how AI
 
 ## Local Development
 
-### Prerequisites
-
-- Python 3.8+
-- [Node.js](https://nodejs.org/) (for Playwright browser install, if running locally)
-- [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) and [Poppler](https://poppler.freedesktop.org/) (optional, for image-based PDF resume support)
-- Docker (for containerized deployment)
 
 ### Setup
 
 1. **Clone the repo:**
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/JohnBurtt10-bot/job-match
    cd job-match
    ```
 
@@ -100,49 +94,35 @@ As a student at the University of Waterloo, I noticed a persistent gap in how AI
    playwright install
    ```
 
-4. **(Optional) Install Tesseract and Poppler for OCR:**
-   - On Ubuntu: `sudo apt-get install tesseract-ocr poppler-utils`
-   - On Windows: Download and add to PATH (see code comments in `resume_utils.py`).
-
-5. **Run the app:**
+4. **Run the app:**
    ```bash
-   export FLASK_APP=src.web.app:app
-   flask run
+   # Set environment variables (Windows PowerShell)
+   $env:FLASK_DEBUG = "True"  # Optional: enables debug mode
+   $env:FLASK_HOST = "0.0.0.0"  # Optional: allows external access
+   $env:FLASK_PORT = "29000"  # Optional: custom port
+
+   # Or for Linux/Mac
+   export FLASK_DEBUG=True  # Optional: enables debug mode
+   export FLASK_HOST=0.0.0.0  # Optional: allows external access
+   export FLASK_PORT=29000  # Optional: custom port
+
+   # Run the app (either method works)
+   python -m src.web.app
+   # Or using Flask CLI (alternative)
+   # export FLASK_APP=src.web.app:app
+   # python -m flask run
    ```
 
-6. **Access the UI:**  
-   Open [http://localhost:5000](http://localhost:5000) in your browser.
+5. **Access the UI:**  
+   - Main app: [http://localhost:29000](http://localhost:29000)
+   - Demo mode: [http://localhost:29000/demo](http://localhost:29000/demo)
 
----
-
-## Deployment
-
-### Docker
-
-The app is fully containerized. The provided `Dockerfile` uses the official Playwright Python image for maximum compatibility.
-
-**Build and run locally:**
-```bash
-docker build -t job-match .
-docker run -p 5000:5000 job-match
-```
-
-### Render.com
-
-Deployment is automated via `render.yaml`. On push, Render will:
-
-- Build the Docker image
-- Set environment variables (including a secret key)
-- Expose the app on a public URL
-
-**Health checks** and **auto-deploy** are enabled.
-
+   Note: The demo mode supports multiple concurrent users and resets on page refresh.
 ---
 
 ## Configuration
 
 - All configuration and shared state are managed in `src/utils/config.py`.
-- Environment variables (for secrets, ports, etc.) are set in `render.yaml` and/or your local environment.
 
 ---
 
@@ -162,7 +142,6 @@ pytest tests/
 
 - **WaterlooWorks UI changes:** If WaterlooWorks updates their UI, selectors may need to be updated.
 - **DUO/MFA:** The system supports DUO, but manual intervention may be required for new devices.
-- **PDF OCR:** Image-based resumes require Tesseract/Poppler and may not be as accurate as text-based PDFs.
 - **OpenAI API:** Requires a valid API key and may incur costs.
 
 ---
