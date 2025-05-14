@@ -3,11 +3,11 @@
 ## 🚀 Quick Start
 
 **Waterloo Students:**
-- Use the main app here: [https://job-match.onrender.com/](http://job-match.duckdns.org/login)  
+- Use the main app here: [http://job-match.duckdns.org/login](http://job-match.duckdns.org/login)  
 (Log in with your WaterlooWorks credentials to see your real jobs, AI-ranked and swipable!)
 
 **Just want to try it?**
-- Try the live demo (no login required): [https://job-match.onrender.com/demo](http://job-match.duckdns.org/demo)
+- Try the live demo (no login required): [http://job-match.duckdns.org/demo](http://job-match.duckdns.org/demo)
   - The demo uses sample resume and job data, but shows the full AI-powered swiping experience.
 
 ---
