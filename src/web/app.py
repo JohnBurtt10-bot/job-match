@@ -336,6 +336,43 @@ def accepted_jobs():
                     })
     return jsonify(accepted)
 
+@app.route('/retry_login', methods=['POST'])
+def retry_login():
+    """Handle retry login requests from the frontend."""
+    username = session.get('username')
+    password = session.get('password')
+    
+    if not username or not password:
+        return jsonify({
+            "error": "No login credentials found in session. Please log in again."
+        }), 401
+    
+    try:
+        # Reset login state for this user
+        if username in login_states:
+            login_states[username] = {
+                "ready": False,
+                "error": None,
+                "duo_required": False
+            }
+        
+        # Start a new login attempt
+        asyncio.run(playwright_main(username, password, login_states))
+        
+        # Check the login state after attempt
+        if username in login_states:
+            current_state = login_states[username]
+            if current_state.get("ready", False):
+                return jsonify({"status": "success"})
+            else:
+                return jsonify({"error": current_state.get("error", "Login failed")})
+        else:
+            return jsonify({"error": "Login attempt failed"})
+            
+    except Exception as e:
+        logging.error(f"Error during retry login: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
 def run_app():
     """Run the Flask application with proper host binding."""
     import os
@@ -347,7 +384,9 @@ def run_app():
     app.run(host=host, port=port, debug=debug)
 
 def cleanup():
-    logging.info("Initiating cleanup...")
+    """Global cleanup function for the Flask application.
+    This handles cleanup of all application resources."""
+    logging.info("Initiating global cleanup...")
     
     # Stop all user processes
     for username in list(stop_event.keys()):
@@ -362,27 +401,63 @@ def cleanup():
     
     # Clear all user data
     for username in list(login_states.keys()):
-        # Clear user-specific data
-        if username in job_queue:
-            del job_queue[username]
-        if username in stop_event:
-            del stop_event[username]
-        if username in user_decisions:
-            del user_decisions[username]
-        if username in decisions_lock:
-            del decisions_lock[username]
-        if username in all_job_details:
-            del all_job_details[username]
-        if username in apply_to_job_queue:
-            del apply_to_job_queue[username]
-        if username in served_job_lock:
-            del served_job_lock[username]
-        if username in served_job_evaluations:
-            del served_job_evaluations[username]
-        if username in login_states:
-            del login_states[username]
+        try:
+            # Clear user-specific data
+            if username in job_queue:
+                while not job_queue[username].empty():
+                    try:
+                        job_queue[username].get_nowait()
+                        job_queue[username].task_done()
+                    except:
+                        pass
+                del job_queue[username]
+            
+            if username in stop_event:
+                del stop_event[username]
+            
+            if username in user_decisions:
+                del user_decisions[username]
+            
+            if username in decisions_lock:
+                del decisions_lock[username]
+            
+            if username in all_job_details:
+                del all_job_details[username]
+            
+            if username in apply_to_job_queue:
+                while not apply_to_job_queue[username].empty():
+                    try:
+                        apply_to_job_queue[username].get_nowait()
+                        apply_to_job_queue[username].task_done()
+                    except:
+                        pass
+                del apply_to_job_queue[username]
+            
+            if username in served_job_lock:
+                del served_job_lock[username]
+            
+            if username in served_job_evaluations:
+                del served_job_evaluations[username]
+            
+            if username in login_states:
+                del login_states[username]
+                
+            # Clean up user-specific directories
+            user_data_dir = os.path.join("user_data", username)
+            job_details_dir = os.path.join("job_details", username)
+            try:
+                if os.path.exists(user_data_dir):
+                    shutil.rmtree(user_data_dir)
+                if os.path.exists(job_details_dir):
+                    shutil.rmtree(job_details_dir)
+            except Exception as e:
+                logging.error(f"Error cleaning up directories for user {username}: {e}")
+                
+        except Exception as e:
+            logging.error(f"Error during cleanup for user {username}: {e}")
+            continue
     
-    logging.info("Cleanup complete.")
+    logging.info("Global cleanup complete.")
 
 if __name__ == "__main__":
     try:

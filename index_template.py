@@ -158,6 +158,33 @@ HTML_TEMPLATE = """
             background-color: var(--error-bg);
             color: var(--error-color);
             border: 1px solid #ffcdd2;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .login-status .retry-button {
+            background-color: var(--error-color);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: background-color 0.2s;
+        }
+
+        .login-status .retry-button:hover {
+            background-color: #b71c1c;
+        }
+
+        .login-status .error-message {
+            flex: 1;
+            margin: 0;
+            padding: 0;
+            background: none;
+            border: none;
         }
 
         .login-status.success {
@@ -281,6 +308,8 @@ HTML_TEMPLATE = """
     <script>
         let currentJobData = null;
         let loginCheckInterval = null;
+        let loginRetryCount = 0;
+        const MAX_LOGIN_RETRIES = 3;
 
         function updateLoginStatus() {
             fetch('/login_status')
@@ -290,6 +319,7 @@ HTML_TEMPLATE = """
                     if (data.ready) {
                         statusDiv.className = 'login-status success';
                         statusDiv.textContent = 'Logged in successfully';
+                        loginRetryCount = 0; // Reset retry count on successful login
                         // Start job fetching if not already started
                         if (!window.jobFetchStarted) {
                             window.jobFetchStarted = true;
@@ -297,7 +327,34 @@ HTML_TEMPLATE = """
                         }
                     } else if (data.error) {
                         statusDiv.className = 'login-status error';
-                        statusDiv.textContent = data.error;
+                        let errorMessage = data.error;
+                        
+                        // Handle specific error cases
+                        if (errorMessage.includes('Invalid credentials')) {
+                            errorMessage = 'Invalid username or password. Please check your credentials.';
+                            if (loginRetryCount < MAX_LOGIN_RETRIES) {
+                                statusDiv.innerHTML = `
+                                    <span class="error-message">${errorMessage}</span>
+                                    <button class="retry-button" onclick="retryLogin()">Retry Login</button>
+                                `;
+                            } else {
+                                statusDiv.innerHTML = `
+                                    <span class="error-message">Too many failed attempts. Please refresh the page to try again.</span>
+                                `;
+                            }
+                        } else if (errorMessage.includes('DUO')) {
+                            errorMessage = 'DUO verification required. Please check your device.';
+                            statusDiv.innerHTML = `
+                                <span class="error-message">${errorMessage}</span>
+                                <button class="retry-button" onclick="retryLogin()">Check DUO Status</button>
+                            `;
+                        } else {
+                            statusDiv.innerHTML = `
+                                <span class="error-message">${errorMessage}</span>
+                                <button class="retry-button" onclick="retryLogin()">Retry</button>
+                            `;
+                        }
+                        
                         // Disable job interaction
                         document.querySelectorAll('.buttons button').forEach(btn => btn.disabled = true);
                     } else {
@@ -308,8 +365,33 @@ HTML_TEMPLATE = """
                 .catch(error => {
                     const statusDiv = document.getElementById('login-status');
                     statusDiv.className = 'login-status error';
-                    statusDiv.textContent = 'Error checking login status';
+                    statusDiv.innerHTML = `
+                        <span class="error-message">Error checking login status. Please try again.</span>
+                        <button class="retry-button" onclick="retryLogin()">Retry</button>
+                    `;
                     console.error('Error checking login status:', error);
+                });
+        }
+
+        function retryLogin() {
+            loginRetryCount++;
+            const statusDiv = document.getElementById('login-status');
+            statusDiv.className = 'login-status loading';
+            statusDiv.textContent = 'Retrying login...';
+            
+            // Make a request to retry login
+            fetch('/retry_login', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        updateLoginStatus(); // This will show the error with retry button if needed
+                    } else {
+                        updateLoginStatus(); // This will check the new login status
+                    }
+                })
+                .catch(error => {
+                    console.error('Error retrying login:', error);
+                    updateLoginStatus(); // This will show the error with retry button
                 });
         }
 

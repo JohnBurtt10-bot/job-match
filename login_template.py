@@ -206,9 +206,11 @@ LOGIN_TEMPLATE = """
             document.getElementById('loginBtn').disabled = true;
 
             try {
+                const formData = new FormData(loginForm);
                 const response = await fetch('/login', {
                     method: 'POST',
-                    body: new FormData(loginForm)
+                    body: formData,
+                    credentials: 'same-origin'  // This ensures cookies are sent with the request
                 });
                 const data = await response.json();
                 
@@ -235,20 +237,31 @@ LOGIN_TEMPLATE = """
 
         async function checkLoginStatus() {
             try {
-                const response = await fetch('/login_status');
+                const response = await fetch('/login_status', {
+                    credentials: 'same-origin'  // This ensures cookies are sent with the request
+                });
                 const data = await response.json();
                 
                 if (data.ready) {
                     window.location.replace('/');
                     return;
-                } else if (data.error === 'Login in progress') {
-                    loginForm.style.display = "none";
-                    waitSection.style.display = "block";
-                    waitMessage.textContent = "Logging in...";
-                    startPolling();
+                } else if (data.error) {
+                    if (data.error === 'Login in progress') {
+                        loginForm.style.display = "none";
+                        waitSection.style.display = "block";
+                        waitMessage.textContent = "Logging in...";
+                        startPolling();
+                    } else {
+                        // Handle any other error case
+                        loginForm.style.display = "block";
+                        waitSection.style.display = "none";
+                        document.getElementById('loginBtn').disabled = false;
+                        showError(data.error);
+                    }
                 }
             } catch (error) {
                 console.error('Error checking login status:', error);
+                showError("An error occurred while checking login status. Please try again.");
             }
         }
 
@@ -259,7 +272,9 @@ LOGIN_TEMPLATE = """
             
             loginPolling = setInterval(async () => {
                 try {
-                    const response = await fetch('/login_status');
+                    const response = await fetch('/login_status', {
+                        credentials: 'same-origin'  // This ensures cookies are sent with the request
+                    });
                     const data = await response.json();
                     console.log("Login status:", data);
                     
@@ -269,12 +284,19 @@ LOGIN_TEMPLATE = """
                         window.location.replace('/');
                         return;
                     } else if (data.error) {
-                        showError(data.error);
+                        console.log("Login error detected:", data.error);
                         clearInterval(loginPolling);
                         clearInterval(duoPolling);
+                        // Force immediate return to login form
                         loginForm.style.display = "block";
                         waitSection.style.display = "none";
                         document.getElementById('loginBtn').disabled = false;
+                        showError(data.error);
+                        // Reset any pending states
+                        isDuoRequired = false;
+                        duoCodeDiv.style.display = "none";
+                        duoCodeDiv.textContent = "";
+                        return;
                     } else if (data.duo_required) {
                         console.log("DUO required, starting DUO polling");
                         if (!isDuoRequired) {

@@ -34,44 +34,42 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # User information
 # Example user_info structure (commented out)
-# user_info = {
-#     "jrburtt@uwaterloo.ca": {
-#         "degree": "Computer Engineering",
-#         "skills": {
-#             "languages": ["Python", "SQL (PostgreSQL)", "JavaScript", "HTML/CSS", "Bash", "C/C++"],
-#             "frameworks": ["Flask", "React", "ROS", "Docker", "Fiber (Go)", "Terraform"]
-#         },
-#         "desired_salary": "$40/hour CAD",
-#         "desired_location": "Must be in the USA",
-#         "co-op_duration": "Must be 4 months",
-#         "work_experience": [
-#             {
-#                 "company": "High Q Technologies",
-#                 "role": "Incoming Software Developer",
-#                 "location": "Waterloo, ON",
-#                 "duration": "Jan. 2025 – Apr. 2025"
-#             },
-#             {
-#                 "company": "OTTO Motors, a division of Clearpath Robotics",
-#                 "role": "DevOps Developer in Fleet Software",
-#                 "location": "Kitchener, ON",
-#                 "duration": "Jan. 2024 – Apr. 2024"
-#             },
-#             {
-#                 "company": "Swap Robotics",
-#                 "role": "Software Developer for Autonomous Robotics",
-#                 "location": "Kitchener, ON",
-#                 "duration": ["Jan. 2022 – Apr. 2022", "May 2023 – Sep. 2023"]
-#             },
-#             {
-#                 "company": "Department of National Defence-Royal Canadian Air Force",
-#                 "role": "Full Stack Developer",
-#                 "location": "Kitchener, ON",
-#                 "duration": ["Sep. 2022 – Dec. 2022"]
-#             }
-#         ]
-#     }
-# }
+test_data = {
+        "degree": "Computer Engineering",
+        "skills": {
+            "languages": ["Python", "SQL (PostgreSQL)", "JavaScript", "HTML/CSS", "Bash", "C/C++"],
+            "frameworks": ["Flask", "React", "ROS", "Docker", "Fiber (Go)", "Terraform"]
+        },
+        "desired_salary": "$40/hour CAD",
+        "desired_location": "Must be in the USA",
+        "co-op_duration": "Must be 4 months",
+        "work_experience": [
+            {
+                "company": "High Q Technologies",
+                "role": "Incoming Software Developer",
+                "location": "Waterloo, ON",
+                "duration": "Jan. 2025 – Apr. 2025"
+            },
+            {
+                "company": "OTTO Motors, a division of Clearpath Robotics",
+                "role": "DevOps Developer in Fleet Software",
+                "location": "Kitchener, ON",
+                "duration": "Jan. 2024 – Apr. 2024"
+            },
+            {
+                "company": "Swap Robotics",
+                "role": "Software Developer for Autonomous Robotics",
+                "location": "Kitchener, ON",
+                "duration": ["Jan. 2022 – Apr. 2022", "May 2023 – Sep. 2023"]
+            },
+            {
+                "company": "Department of National Defence-Royal Canadian Air Force",
+                "role": "Full Stack Developer",
+                "location": "Kitchener, ON",
+                "duration": ["Sep. 2022 – Dec. 2022"]
+            }
+        ]
+    }
 
 # Initialize empty user_info dictionary
 user_info = {}
