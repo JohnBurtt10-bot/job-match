@@ -145,7 +145,8 @@ async def main(username, password, login_states=None):
                 
                 # Skip login process and continue with job processing
                 await page.goto(JOBS_URL, wait_until="load")
-            except Exception:
+            except Exception as e:
+                logging.error(f"Error redirecting to dashboard: {e}")
                 # If not redirected, proceed with normal login
                 # Wait for username input and enter username
                 await page.wait_for_selector("#userNameInput", state="visible", timeout=15000)
@@ -189,6 +190,7 @@ async def main(username, password, login_states=None):
                         await page.wait_for_selector("#trust-browser-button", state="attached", timeout=15000)
                         await page.click("#trust-browser-button")
                     except Exception as duo_error:
+                        logging.error(f"Error waiting for DUO verification: {duo_error}")
                         # If DUO verification not found, check if we're already logged in
                         try:
                             await page.wait_for_selector("a.items.active", state="attached", timeout=3000)
@@ -200,6 +202,7 @@ async def main(username, password, login_states=None):
                                     "duo_required": False
                                 }
                         except Exception as login_error:
+                            logging.error(f"Error waiting for login: {login_error}")
                             # If neither DUO nor direct login worked, credentials are invalid
                             if login_states is not None:
                                 login_states[username] = {
