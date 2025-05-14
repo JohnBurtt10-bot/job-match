@@ -134,7 +134,7 @@ async def main(username, password, login_states=None):
         async with async_playwright() as playwright:
             try:
                 # Launch browser with user-specific user data dir
-                browser = await playwright.chromium.launch_persistent_context(user_data_dir, headless=False)
+                browser = await playwright.chromium.launch_persistent_context(user_data_dir, headless=True)
                 context = browser  # Use the persistent context directly
                 page = await context.new_page()
                 
