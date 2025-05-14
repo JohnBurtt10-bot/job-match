@@ -1,5 +1,7 @@
 import logging
 import time
+import threading
+import asyncio
 from src.utils.evaluate_decision_history import evaluate_decision_history
 from src.utils.config import (
     job_queue, stop_event,
@@ -8,6 +10,42 @@ from src.utils.config import (
 )
 from src.utils.evaluation_parser import remove_score_salary_category, extract_score_salary_category
 from src.core import evaluation
+
+def start_ai_evaluation_worker(jobs, username):
+    """Start a worker thread to handle AI evaluations."""
+    def run():
+        asyncio.run(ai_evaluation_worker_async(jobs, username))
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    return thread
+
+async def ai_evaluation_worker_async(jobs, username):
+    """Async worker that processes jobs for AI evaluation."""
+    import itertools
+    job_counter_local = itertools.count(1000)
+    
+    for job_id, job in jobs.items():
+        if username in stop_event and stop_event[username].is_set():
+            logging.info(f"Stopping AI evaluation worker for user {username}")
+            return
+            
+        while job_queue[username].full() and not stop_event[username].is_set():
+            await asyncio.sleep(0.1)
+            
+        try:
+            await asyncio.to_thread(evaluate_job_fit, job_id, job, job_counter_local, username)
+        except Exception as e:
+            logging.error(f"Error evaluating job {job_id}: {e}", exc_info=True)
+            # Queue the job with error message
+            job_data = {
+                'job_id': job_id,
+                'job_details': job,
+                'ai_evaluation': f"Error: {e}"
+            }
+            try:
+                job_queue[username].put((0, next(job_counter_local), job_data))
+            except Exception as queue_error:
+                logging.error(f"Error queueing job {job_id}: {queue_error}")
 
 def evaluate_job_fit(id, job, job_counter_local, username):
     # Use per-user lock and decisions

@@ -515,14 +515,24 @@ async def main(username, password, login_states=None):
 
 # Start apply-to-job thread
 async def apply_to_job_worker(username, context=None):
+    logging.info(f"Starting apply_to_job_worker for user {username}")
     while not stop_event[username].is_set():
         try:
             # Use asyncio.to_thread to avoid blocking the event loop with a blocking queue
+            logging.debug(f"Waiting for job from apply queue for user {username}")
             job_id = await asyncio.to_thread(apply_to_job_queue[username].get, 2)
-            await apply_to_job(job_id, username, context)
+            logging.info(f"Processing job {job_id} for user {username}")
+            # Only pass job_id and context to apply_to_job
+            await apply_to_job(job_id, context)
+            logging.info(f"Successfully processed job {job_id} for user {username}")
             await asyncio.to_thread(apply_to_job_queue[username].task_done)
-        except Exception:
+        except queue.Empty:
+            logging.debug(f"No jobs in queue for user {username}, continuing to wait...")
             continue
+        except Exception as e:
+            logging.error(f"Error processing job for user {username}: {e}", exc_info=True)
+            continue
+    logging.info(f"apply_to_job_worker stopped for user {username}")
 
 async def cleanup_async(ai_thread, apply_thread, browser, username):
     """Async version of cleanup for use in async contexts.
