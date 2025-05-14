@@ -197,6 +197,23 @@ LOGIN_TEMPLATE = """
         let duoPolling = null;
         let isDuoRequired = false;
         let isPolling = false;  // Add flag to track polling state
+        let duoPollingStarted = false;  // Add flag to track if DUO polling has started
+
+        // Start DUO polling when form is interacted with
+        loginForm.addEventListener('focusin', function(e) {
+            if (!duoPollingStarted) {
+                startDuoPolling();
+                duoPollingStarted = true;
+            }
+        });
+
+        // Also start DUO polling when clicking anywhere in the form
+        loginForm.addEventListener('click', function(e) {
+            if (!duoPollingStarted) {
+                startDuoPolling();
+                duoPollingStarted = true;
+            }
+        });
 
         // Check login status immediately
         checkLoginStatus();
@@ -209,6 +226,7 @@ LOGIN_TEMPLATE = """
             if (duoPolling) {
                 clearInterval(duoPolling);
                 duoPolling = null;
+                duoPollingStarted = false;  // Reset the DUO polling started flag
             }
             isPolling = false;
         }
@@ -236,6 +254,12 @@ LOGIN_TEMPLATE = """
             e.preventDefault();
             errorDiv.style.display = "none";
             document.getElementById('loginBtn').disabled = true;
+
+            // Ensure DUO polling is started before login attempt
+            if (!duoPollingStarted) {
+                startDuoPolling();
+                duoPollingStarted = true;
+            }
 
             try {
                 const formData = new FormData(loginForm);
@@ -345,6 +369,11 @@ LOGIN_TEMPLATE = """
         function startDuoPolling() {
             if (duoPolling) return;  // Prevent multiple DUO polling sessions
             
+            // Clear any existing DUO polling first
+            if (duoPolling) {
+                clearInterval(duoPolling);
+            }
+            
             duoPolling = setInterval(async () => {
                 try {
                     const response = await fetch('/get_duo_code');
@@ -354,6 +383,9 @@ LOGIN_TEMPLATE = """
                         console.log("Received DUO code in polling:", data.code);
                         duoCodeDiv.textContent = "DUO Code: " + data.code;
                         duoCodeDiv.style.display = "block";
+                        // If we get a code, we can stop polling for new codes
+                        clearInterval(duoPolling);
+                        duoPolling = null;
                     }
                 } catch (error) {
                     console.error('Error polling DUO code:', error);
