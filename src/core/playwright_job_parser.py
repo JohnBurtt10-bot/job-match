@@ -168,7 +168,7 @@ async def main(username, password, login_states=None):
                 try:
                     # First try to wait for DUO verification code
                     try:
-                        await page.wait_for_selector("div.verification-code", state="attached", timeout=5000)
+                        await page.wait_for_selector("div.verification-code", state="attached", timeout=10000)
                         # If we get here, we have a DUO code
                         verification_code_el = await page.query_selector("div.verification-code")
                         verification_code = await verification_code_el.inner_text() if verification_code_el else None
