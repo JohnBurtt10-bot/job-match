@@ -3,11 +3,9 @@ services:
     name: job-match
     env: python
     buildCommand: |
+      export PLAYWRIGHT_BROWSERS_PATH=0
       pip install -r requirements.txt
-      playwright install --with-deps
-      playwright install chromium
-      playwright install firefox
-      playwright install webkit
+      playwright install --with-deps chromium
     startCommand: python -m flask --app src.web.app:app run --host=0.0.0.0 --port=$PORT
     envVars:
       - key: FLASK_HOST
