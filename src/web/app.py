@@ -40,6 +40,7 @@ login_states = {}
 playwright_queue = Queue()  # Queue for new users to be processed by Playwright
 playwright_thread = None
 _initialized = False
+demo_evaluation_threads = {}  # Store active demo evaluation threads
 
 def load_user_decisions_from_logs():
     """Load user decisions from log files on startup."""
@@ -380,6 +381,39 @@ def retry_login():
         logging.error(f"Error during retry login: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
+def evaluate_demo_jobs_thread(demo_username, demo_session_id, demo_jobs):
+    """Evaluate demo jobs in a separate thread."""
+    import itertools
+    job_counter_local = itertools.count(1000)
+    
+    # Ensure all_job_details is initialized for this user
+    if demo_username not in all_job_details:
+        all_job_details[demo_username] = {}
+    
+    for i, job in enumerate(demo_jobs):
+        # Check if we should stop processing
+        if demo_username in stop_event and stop_event[demo_username].is_set():
+            logging.info(f"Stopping evaluation thread for demo session {demo_session_id}")
+            return
+            
+        job_id = f"demo_{demo_session_id}_{i}"
+        try:
+            # Store job details before evaluation to prevent race condition
+            all_job_details[demo_username][job_id] = job
+            job_evaluator.evaluate_job_fit(job_id, job, job_counter_local, demo_username)
+        except Exception as e:
+            # If error, still queue the job with error message
+            job_data = {
+                'job_id': job_id,
+                'job_details': job,
+                'ai_evaluation': f"Error: {e}"
+            }
+            try:
+                job_queue[demo_username].put((i, time.time(), job_data))
+            except Exception as queue_error:
+                logging.error(f"Error queueing job {job_id}: {queue_error}")
+                continue
+
 @app.route('/demo')
 def demo():
     # Generate a unique session ID for this demo instance
@@ -389,6 +423,14 @@ def demo():
     # Initialize all necessary data structures for this demo session
     demo_username = f'demo_user_{demo_session_id}'
     session['username'] = demo_username
+
+    # Stop any existing evaluation thread for this demo session
+    if demo_username in demo_evaluation_threads:
+        if demo_username in stop_event:
+            stop_event[demo_username].set()
+        if demo_evaluation_threads[demo_username].is_alive():
+            demo_evaluation_threads[demo_username].join(timeout=5)
+        del demo_evaluation_threads[demo_username]
 
     # Initialize all per-user structures for this demo session
     if demo_username not in user_decisions:
@@ -438,22 +480,14 @@ def demo():
     if not demo_jobs:
         return "No demo job details files found.", 500
 
-    # AI analyze each job (synchronously for demo)
-    import itertools
-    job_counter_local = itertools.count(1000)
-    for i, job in enumerate(demo_jobs):
-        job_id = f"demo_{demo_session_id}_{i}"
-        try:
-            job_evaluator.evaluate_job_fit(job_id, job, job_counter_local, demo_username)
-        except Exception as e:
-            # If error, still queue the job with error message
-            job_data = {
-                'job_id': job_id,
-                'job_details': job,
-                'ai_evaluation': f"Error: {e}"
-            }
-            job_queue[demo_username].put((i, time.time(), job_data))
-            all_job_details[demo_username][job_id] = job
+    # Start job evaluation in a separate thread
+    evaluation_thread = threading.Thread(
+        target=evaluate_demo_jobs_thread,
+        args=(demo_username, demo_session_id, demo_jobs),
+        daemon=True
+    )
+    evaluation_thread.start()
+    demo_evaluation_threads[demo_username] = evaluation_thread
 
     # Prepare resume JSON for display
     import json
@@ -466,6 +500,14 @@ def demo_cleanup():
     demo_session_id = session.get('demo_session_id')
     if demo_session_id:
         demo_username = f'demo_user_{demo_session_id}'
+        
+        # Stop the evaluation thread if it's running
+        if demo_username in demo_evaluation_threads:
+            if demo_username in stop_event:
+                stop_event[demo_username].set()
+            if demo_evaluation_threads[demo_username].is_alive():
+                demo_evaluation_threads[demo_username].join(timeout=5)
+            del demo_evaluation_threads[demo_username]
         
         # Clean up all data structures for this demo session
         if demo_username in user_decisions:

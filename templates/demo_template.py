@@ -271,18 +271,7 @@ DEMO_TEMPLATE = """
         });
 
         // Add cleanup on page visibility change (for mobile browsers)
-        document.addEventListener('visibilitychange', async function() {
-            if (document.visibilityState === 'hidden') {
-                try {
-                    await fetch('/demo_cleanup', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                } catch (error) {
-                    console.error('Error during cleanup:', error);
-                }
-            }
-        });
+       
 
         function escapeHtml(unsafe) {
             if (unsafe === null || unsafe === undefined) return '';
@@ -340,19 +329,36 @@ DEMO_TEMPLATE = """
                 const response = await fetch('/get_job');
                 if (!response.ok) {
                     if (response.status === 202) {
-                         const data = await response.json();
-                         displayJob(data);
-                         setTimeout(fetchJob, 3000);
-                         return;
+                        const data = await response.json();
+                        if (data.message === "All jobs processed.") {
+                            // If all jobs are processed, start polling for new ones
+                            jobDetailsDiv.innerHTML = '<p class="loading">Waiting for new jobs to become available...</p>';
+                            setTimeout(fetchJob, 3000); // Poll every 3 seconds
+                            return;
+                        }
+                        displayJob(data);
+                        setTimeout(fetchJob, 3000);
+                        return;
                     }
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const data = await response.json();
+                if (data.message === "All jobs processed.") {
+                    // If all jobs are processed, start polling for new ones
+                    jobDetailsDiv.innerHTML = '<p class="loading">Waiting for new jobs to become available...</p>';
+                    setTimeout(fetchJob, 3000); // Poll every 3 seconds
+                    return;
+                } else if (data.message === "Processing jobs, please wait...") {
+                    jobDetailsDiv.innerHTML = '<p class="loading">Processing jobs, please wait...</p>';
+                    setTimeout(fetchJob, 3000); // Poll every 3 seconds
+                    return;
+                }
                 displayJob(data);
             } catch (error) {
                 console.error('Error fetching job:', error);
                 document.getElementById('job-title').textContent = 'Error';
-                jobDetailsDiv.innerHTML = '<p class="loading">Error loading job. Check console or backend logs.</p>';
+                jobDetailsDiv.innerHTML = '<p class="loading">Error loading job. Retrying in 3 seconds...</p>';
+                setTimeout(fetchJob, 3000); // Retry on error after 3 seconds
                 buttons.forEach(btn => btn.disabled = true);
             }
         }

@@ -453,21 +453,39 @@ HTML_TEMPLATE = """
 
             try {
                 const response = await fetch('/get_job');
+                const data = await response.json();
+                
                 if (!response.ok) {
                     if (response.status === 202) {
-                         const data = await response.json();
-                         displayJob(data);
-                         setTimeout(fetchJob, 3000);
-                         return;
+                        // If we get a 202, it means the server is still processing
+                        displayJob(data);
+                        setTimeout(fetchJob, 3000); // Continue polling every 3 seconds
+                        return;
                     }
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                const data = await response.json();
+
+                if (data.message === "All jobs processed.") {
+                    // If all jobs are processed, start polling for new ones
+                    jobDetailsDiv.innerHTML = '<p class="loading">Waiting for new jobs to become available...</p>';
+                    setTimeout(fetchJob, 3000); // Poll every 3 seconds
+                    return;
+                }
+
+                if (data.message === "Processing jobs, please wait...") {
+                    // If server is still processing, continue polling
+                    displayJob(data);
+                    setTimeout(fetchJob, 3000); // Poll every 3 seconds
+                    return;
+                }
+
+                // If we got a job, display it
                 displayJob(data);
             } catch (error) {
                 console.error('Error fetching job:', error);
                 document.getElementById('job-title').textContent = 'Error';
-                jobDetailsDiv.innerHTML = '<p class="loading">Error loading job. Check console or backend logs.</p>';
+                jobDetailsDiv.innerHTML = '<p class="loading">Error loading job. Retrying in 3 seconds...</p>';
+                setTimeout(fetchJob, 3000); // Retry on error after 3 seconds
                 buttons.forEach(btn => btn.disabled = true);
             }
         }
