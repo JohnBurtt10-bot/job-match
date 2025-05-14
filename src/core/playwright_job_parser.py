@@ -128,7 +128,7 @@ async def main(username, password, login_states=None):
             
             # Check if we get redirected to dashboard
             try:
-                await page.wait_for_url("**/myAccount/dashboard.htm", timeout=5000)
+                await page.wait_for_url("**/myAccount/dashboard.htm", timeout=10000)
                 logging.info("Already logged in - redirected to dashboard")
                 if login_states is not None:
                     login_states[username] = {
