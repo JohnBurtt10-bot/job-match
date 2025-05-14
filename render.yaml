@@ -1,11 +1,8 @@
 services:
   - type: web
     name: job-match
-    env: python
-    buildCommand: |
-      export PLAYWRIGHT_BROWSERS_PATH=0
-      pip install -r requirements.txt
-      playwright install --with-deps chromium
+    env: docker
+    dockerfilePath: ./Dockerfile
     startCommand: python -m flask --app src.web.app:app run --host=0.0.0.0 --port=$PORT
     envVars:
       - key: FLASK_HOST
