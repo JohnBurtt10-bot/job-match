@@ -117,8 +117,9 @@ def login():
                 'error': 'Username and password are required'
             })
         
-        # Store username in session
+        # Store username and password in session
         session['username'] = username
+        session['password'] = password
         
         # Start login process
         def run_login():
@@ -190,6 +191,7 @@ def get_duo_code():
 @app.route('/logout')
 def logout():
     session.pop('username', None)
+    session.pop('password', None)  # Also clear password from session
     return redirect(url_for('login'))
 
 def start_playwright_worker():
@@ -306,13 +308,15 @@ def handle_decision():
         if decision == "accept":
             apply_to_job_queue[username].put(job_id)
 
-        # Log decision to file
-        log_file = f"decisions_{username}.log"
-        try:
-            with open(log_file, "a", encoding="utf-8") as f:
-                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - DECISION: {decision}, JOB_ID: {job_id}\n")
-        except Exception as e:
-            logging.error(f"Failed to log decision to file {log_file}: {e}")
+        # Only save decision logs for non-demo users
+        if not username.startswith('demo_user_'):
+            # Log decision to file
+            log_file = f"decisions_{username}.log"
+            try:
+                with open(log_file, "a", encoding="utf-8") as f:
+                    f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - DECISION: {decision}, JOB_ID: {job_id}\n")
+            except Exception as e:
+                logging.error(f"Failed to log decision to file {log_file}: {e}")
 
         return jsonify({"status": "decision received", "decision": decision, "job_id": job_id})
     except Exception as e:
@@ -356,7 +360,16 @@ def retry_login():
         }), 401
     
     try:
-        # Reset login state for this user
+        # Check if we're in a DUO retry state
+        if username in login_states and login_states[username].get("duo_required"):
+            # If we're in DUO state, just update the state to indicate we're retrying
+            login_states[username].update({
+                "duo_pending": True,  # Indicate we're waiting for a new code
+                "error": "Waiting for new DUO code..."
+            })
+            return jsonify({"status": "retrying_duo"})
+        
+        # For non-DUO retries, reset login state and start new attempt
         if username in login_states:
             login_states[username] = {
                 "ready": False,

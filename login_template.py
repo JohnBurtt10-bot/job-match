@@ -196,9 +196,41 @@ LOGIN_TEMPLATE = """
         let loginPolling = null;
         let duoPolling = null;
         let isDuoRequired = false;
+        let isPolling = false;  // Add flag to track polling state
 
         // Check login status immediately
         checkLoginStatus();
+
+        function clearAllPolling() {
+            if (loginPolling) {
+                clearInterval(loginPolling);
+                loginPolling = null;
+            }
+            if (duoPolling) {
+                clearInterval(duoPolling);
+                duoPolling = null;
+            }
+            isPolling = false;
+        }
+
+        function showWaitSection(message) {
+            loginForm.style.display = "none";
+            waitSection.style.display = "block";
+            waitMessage.textContent = message;
+        }
+
+        function showLoginForm(errorMessage = null) {
+            clearAllPolling();
+            loginForm.style.display = "block";
+            waitSection.style.display = "none";
+            document.getElementById('loginBtn').disabled = false;
+            if (errorMessage) {
+                showError(errorMessage);
+            }
+            isDuoRequired = false;
+            duoCodeDiv.style.display = "none";
+            duoCodeDiv.textContent = "";
+        }
 
         loginForm.onsubmit = async function(e) {
             e.preventDefault();
@@ -210,23 +242,19 @@ LOGIN_TEMPLATE = """
                 const response = await fetch('/login', {
                     method: 'POST',
                     body: formData,
-                    credentials: 'same-origin'  // This ensures cookies are sent with the request
+                    credentials: 'same-origin'
                 });
                 const data = await response.json();
                 
                 if (!data.success) {
-                    showError(data.error || "Login failed");
-                    document.getElementById('loginBtn').disabled = false;
+                    showLoginForm(data.error || "Login failed");
                     return;
                 }
 
-                loginForm.style.display = "none";
-                waitSection.style.display = "block";
-                waitMessage.textContent = "Logging in...";
+                showWaitSection("Logging in...");
                 startPolling();
             } catch (error) {
-                showError("Login failed. Please try again.");
-                document.getElementById('loginBtn').disabled = false;
+                showLoginForm("Login failed. Please try again.");
             }
         };
 
@@ -236,101 +264,86 @@ LOGIN_TEMPLATE = """
         }
 
         async function checkLoginStatus() {
+            if (isPolling) return;  // Prevent multiple polling sessions
+            
             try {
                 const response = await fetch('/login_status', {
-                    credentials: 'same-origin'  // This ensures cookies are sent with the request
+                    credentials: 'same-origin'
                 });
                 const data = await response.json();
                 
                 if (data.ready) {
+                    clearAllPolling();
                     window.location.replace('/');
                     return;
                 } else if (data.error) {
                     if (data.error === 'Login in progress') {
-                        loginForm.style.display = "none";
-                        waitSection.style.display = "block";
-                        waitMessage.textContent = "Logging in...";
+                        showWaitSection("Logging in...");
+                        startPolling();
+                    } else if (data.error.includes("DUO code")) {
+                        showWaitSection("Incorrect DUO code. Please try again on your phone");
                         startPolling();
                     } else {
-                        // Handle any other error case
-                        loginForm.style.display = "block";
-                        waitSection.style.display = "none";
-                        document.getElementById('loginBtn').disabled = false;
-                        showError(data.error);
+                        showLoginForm(data.error);
                     }
+                } else if (data.duo_required) {
+                    showWaitSection("Please complete DUO on your phone");
+                    startPolling();
                 }
             } catch (error) {
                 console.error('Error checking login status:', error);
-                showError("An error occurred while checking login status. Please try again.");
+                showLoginForm("An error occurred while checking login status. Please try again.");
             }
         }
 
         function startPolling() {
-            if (loginPolling) {
-                clearInterval(loginPolling);
-            }
+            if (isPolling) return;  // Prevent multiple polling sessions
+            isPolling = true;
+            
+            clearAllPolling();  // Clear any existing polling
             
             loginPolling = setInterval(async () => {
                 try {
                     const response = await fetch('/login_status', {
-                        credentials: 'same-origin'  // This ensures cookies are sent with the request
+                        credentials: 'same-origin'
                     });
                     const data = await response.json();
                     console.log("Login status:", data);
                     
                     if (data.ready) {
-                        clearInterval(loginPolling);
-                        clearInterval(duoPolling);
+                        clearAllPolling();
                         window.location.replace('/');
                         return;
                     } else if (data.error) {
-                        console.log("Login error detected:", data.error);
-                        clearInterval(loginPolling);
-                        clearInterval(duoPolling);
-                        // Force immediate return to login form
-                        loginForm.style.display = "block";
-                        waitSection.style.display = "none";
-                        document.getElementById('loginBtn').disabled = false;
-                        showError(data.error);
-                        // Reset any pending states
-                        isDuoRequired = false;
-                        duoCodeDiv.style.display = "none";
-                        duoCodeDiv.textContent = "";
-                        return;
+                        if (data.error.includes("DUO code") || data.duo_required) {
+                            showWaitSection("Incorrect DUO code. Please try again on your phone");
+                            if (!duoPolling) {
+                                startDuoPolling();
+                            }
+                        } else {
+                            showLoginForm(data.error);
+                        }
                     } else if (data.duo_required) {
-                        console.log("DUO required, starting DUO polling");
                         if (!isDuoRequired) {
                             isDuoRequired = true;
-                            // Get the DUO code immediately when DUO is required
-                            try {
-                                console.log("Fetching initial DUO code...");
-                                const duoResponse = await fetch('/get_duo_code');
-                                const duoData = await duoResponse.json();
-                                console.log("Initial DUO code response:", duoData);
-                                if (duoData.success && duoData.code) {
-                                    console.log("Setting initial DUO code in message:", duoData.code);
-                                    waitMessage.textContent = `Please complete DUO on your phone`;
-                                } else {
-                                    console.log("No initial DUO code available");
-                                    waitMessage.textContent = "Please complete DUO on your phone";
-                                }
-                            } catch (error) {
-                                console.error('Error getting initial DUO code:', error);
-                                waitMessage.textContent = "Please complete DUO on your phone";
-                            }
+                            showWaitSection("Please complete DUO on your phone");
                             startDuoPolling();
+                        } else if (data.duo_pending) {
+                            showWaitSection("Incorrect DUO code. Please try again on your phone");
+                            if (!duoPolling) {
+                                startDuoPolling();
+                            }
                         }
                     }
                 } catch (error) {
                     console.error('Error polling login status:', error);
+                    showLoginForm("An error occurred while checking login status. Please try again.");
                 }
-            }, 1000); // Poll every second
+            }, 1000);
         }
 
         function startDuoPolling() {
-            if (duoPolling) {
-                clearInterval(duoPolling);
-            }
+            if (duoPolling) return;  // Prevent multiple DUO polling sessions
             
             duoPolling = setInterval(async () => {
                 try {
@@ -341,17 +354,15 @@ LOGIN_TEMPLATE = """
                         console.log("Received DUO code in polling:", data.code);
                         duoCodeDiv.textContent = "DUO Code: " + data.code;
                         duoCodeDiv.style.display = "block";
-                    } else {
-                        console.log("No DUO code in polling response:", data);
                     }
                 } catch (error) {
                     console.error('Error polling DUO code:', error);
                 }
-            }, 1000); // Poll every second
+            }, 1000);
         }
 
         // Add a backup check for login status
-        setInterval(checkLoginStatus, 1000);
+        setInterval(checkLoginStatus, 5000);  // Reduced frequency of backup check
     </script>
 </body>
 </html>

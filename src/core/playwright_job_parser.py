@@ -83,6 +83,8 @@ async def ai_evaluation_worker_async(jobs, username):
         await asyncio.to_thread(evaluate_job_fit, job_id, job, job_counter_local, username)
 
 async def main(username, password, login_states=None):
+    # Clear session at the start
+    
     browser = None
     ai_thread = None
     apply_thread = None
@@ -123,7 +125,8 @@ async def main(username, password, login_states=None):
             duo_code_queue[username] = queue.Queue()
 
         # Create base directories if they don't exist
-        user_data_dir = os.path.join("user_data", username)
+        timestamp = int(time.time())
+        user_data_dir = os.path.join("user_data", f"{username}_{timestamp}")
         job_details_dir = os.path.join("job_details", username)
         os.makedirs(user_data_dir, exist_ok=True)
         os.makedirs(job_details_dir, exist_ok=True)
@@ -134,7 +137,11 @@ async def main(username, password, login_states=None):
         async with async_playwright() as playwright:
             try:
                 # Launch browser with user-specific user data dir
-                browser = await playwright.chromium.launch_persistent_context(user_data_dir, headless=True)
+                browser = await playwright.chromium.launch_persistent_context(
+                    user_data_dir, 
+                    headless=False,
+                    timeout=30000  # 30 second timeout for browser launch
+                )
                 context = browser  # Use the persistent context directly
                 page = await context.new_page()
                 
@@ -266,16 +273,103 @@ async def main(username, password, login_states=None):
 
                             # Try to click trust browser button if it exists, but continue either way
                             try:
-                                trust_button = await page.query_selector("#trust-browser-button")
-                                if trust_button:
-                                    await trust_button.click()
-                                    logging.info("Clicked trust browser button")
-                                else:
-                                    logging.info("Trust browser button not found, continuing anyway")
+                                # Start a loop to continuously check for try again button
+                                start_time = time.time()
+                                while time.time() - start_time < 300:  # 5 minute timeout for DUO attempts
+                                    try:
+                                        # Check for either trust button or retry button
+                                        trust_or_retry = await page.query_selector(
+                                            "#trust-browser-button, .try-again-button"
+                                        )
+                                        
+                                        if trust_or_retry:
+                                            button_class = await trust_or_retry.get_attribute("class")
+                                            if "try-again-button" in button_class:
+                                                logging.info("Found retry button - DUO code was incorrect")
+                                                await trust_or_retry.click()
+                                                if login_states is not None:
+                                                    # Keep duo_required as True and update the code
+                                                    login_states[username] = {
+                                                        "ready": False,
+                                                        "error": "Incorrect DUO code. Please try again.",
+                                                        "duo_required": True,
+                                                        "duo_pending": True  # Add this to indicate we're waiting for new code
+                                                    }
+                                                # Wait for new DUO code to appear
+                                                try:
+                                                    verification_code_el = await page.wait_for_selector("div.verification-code", timeout=30000)
+                                                    if verification_code_el:
+                                                        verification_code = await verification_code_el.inner_text()
+                                                        # Clear any existing codes in the queue
+                                                        while not duo_code_queue[username].empty():
+                                                            try:
+                                                                duo_code_queue[username].get_nowait()
+                                                            except:
+                                                                pass
+                                                        # Put the new code in the queue
+                                                        duo_code_queue[username].put(verification_code)
+                                                        logging.info(f"Put new DUO code in queue for user {username}: {verification_code}")
+                                                        if login_states is not None:
+                                                            login_states[username]["duo_code"] = verification_code
+                                                            login_states[username]["duo_pending"] = False  # Code is now available
+                                                        # Reset the timer for the next attempt
+                                                        start_time = time.time()
+                                                        continue  # Continue checking for more attempts
+                                                except Exception as e:
+                                                    logging.error(f"Error waiting for new DUO code: {e}")
+                                                    break
+                                            else:
+                                                logging.info("Clicked trust browser button")
+                                                await trust_or_retry.click()
+                                                break  # Exit the loop after clicking trust button
+                                        
+                                        # Check if we've reached the dashboard
+                                        current_url = page.url
+                                        if '/myAccount/dashboard.htm' in current_url:
+                                            logging.info("Successfully reached dashboard")
+                                            if login_states is not None:
+                                                login_states[username] = {
+                                                    "ready": True,
+                                                    "error": None,
+                                                    "duo_required": False
+                                                }
+                                            break  # Exit the loop after successful login
+                                        
+                                        # Wait a bit before checking again
+                                        await asyncio.sleep(1)
+                                        
+                                    except Exception as e:
+                                        logging.error(f"Error in DUO button check loop: {e}")
+                                        await asyncio.sleep(1)
+                                        continue
+                                
+                                # If we timed out, update the state
+                                if time.time() - start_time >= 300:
+                                    if login_states is not None:
+                                        login_states[username] = {
+                                            "ready": False,
+                                            "error": "DUO verification timed out. Please try logging in again.",
+                                            "duo_required": False
+                                        }
+                                    logging.error("DUO verification timed out")
+                                    return
+                                
                             except Exception as e:
-                                logging.info(f"Could not click trust browser button: {e}, continuing anyway")
+                                logging.info(f"Could not find or click buttons: {e}, continuing anyway")
                             
-                            await page.wait_for_url('/myAccount/dashboard.htm', timeout=50000)
+                            # Only wait for dashboard URL if we haven't already reached it
+                            if not '/myAccount/dashboard.htm' in page.url:
+                                try:
+                                    await page.wait_for_url('https://waterlooworks.uwaterloo.ca/myAccount/dashboard.htm', timeout=50000)
+                                except Exception as e:
+                                    logging.error(f"Error waiting for dashboard URL: {e}")
+                                    if login_states is not None:
+                                        login_states[username] = {
+                                            "ready": False,
+                                            "error": "Failed to reach dashboard after DUO verification",
+                                            "duo_required": False
+                                        }
+                                    return
 
                         elif status == 'failed':
                             if login_states is not None:
