@@ -17,7 +17,7 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 # No need to run playwright install
 
 # Expose the port the app runs on
-# EXPOSE $PORT
+EXPOSE $PORT
 
-# # Command to run the application
-# CMD ["python", "-m", "flask", "--app", "src.web.app:app", "run", "--host=0.0.0.0", "--port=$PORT"] 
+# Command to run the application using shell form to handle environment variables
+CMD python -m flask --app src.web.app:app run --host=0.0.0.0 --port=${PORT:-5000} 
