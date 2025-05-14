@@ -4,8 +4,10 @@ services:
     env: python
     buildCommand: |
       pip install -r requirements.txt
+      playwright install --with-deps
       playwright install chromium
-      playwright install-deps
+      playwright install firefox
+      playwright install webkit
     startCommand: python -m flask --app src.web.app:app run --host=0.0.0.0 --port=$PORT
     envVars:
       - key: FLASK_HOST
