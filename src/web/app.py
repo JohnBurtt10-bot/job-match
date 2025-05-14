@@ -7,7 +7,7 @@ from flask import jsonify, render_template, request, session, redirect, url_for
 from src.utils.config import (
     app, stop_event, user_decisions, decisions_lock, MAX_DECISION_HISTORY,
     job_queue, processing_thread, apply_to_job_queue,   # ADDED apply_to_job_queue
-    served_job_evaluations, served_job_lock, all_job_details
+    served_job_evaluations, served_job_lock, all_job_details, test_data
 )
 from src.core.evaluation import evaluate_job_fit
 from queue import Empty, Queue
@@ -20,6 +20,12 @@ import os
 from login_template import LOGIN_TEMPLATE
 from index_template import HTML_TEMPLATE
 import re
+import ast
+from templates.demo_template import DEMO_TEMPLATE
+from threading import Lock
+from src.utils.evaluation_parser import extract_score_salary_category
+from src.core import job_evaluator
+from threading import Event
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]: %(message)s")
 
@@ -234,7 +240,7 @@ def get_job():
         # Store the evaluation temporarily on the backend before sending
         if job_id and ai_evaluation is not None:
             with served_job_lock[username]:
-                served_job_evaluations[job_id] = ai_evaluation
+                served_job_evaluations[username][job_id] = ai_evaluation
                 logging.debug(f"Stored evaluation for job {job_id}. Served count: {len(served_job_evaluations)}")
 
         job_queue[username].task_done()
@@ -277,7 +283,7 @@ def handle_decision():
         # Retrieve the stored AI evaluation for this job_id
         retrieved_evaluation = None
         with served_job_lock[username]:
-            retrieved_evaluation = served_job_evaluations.pop(job_id, None)
+            retrieved_evaluation = served_job_evaluations[username].pop(job_id, None)
 
         if retrieved_evaluation is None:
             logging.warning(f"Could not find stored evaluation for job ID: {job_id}. Decision might be duplicate or job not served.")
@@ -321,7 +327,7 @@ def accepted_jobs():
     if username in user_decisions:
         for decision in user_decisions[username]:
             if decision.get('decision') == 'accept':
-                job_details = all_job_details.get(decision['job_id'], {})
+                job_details = all_job_details.get(username, {}).get(decision['job_id'], {})
                 # Use new location fields if available
                 if "Job - City:" in job_details and "Job - Province/State:" in job_details and "Job - Country:" in job_details:
                     loc = f"{job_details['Job - City:']}, {job_details['Job - Province/State:']}, {job_details['Job - Country:']}"
@@ -372,6 +378,69 @@ def retry_login():
     except Exception as e:
         logging.error(f"Error during retry login: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+@app.route('/demo')
+def demo():
+    # Use a special username for the demo session
+    demo_username = 'demo_user'
+    session['username'] = demo_username
+
+    # Only queue demo jobs if not already queued for this session
+    if demo_username not in user_decisions:
+        user_decisions[demo_username] = []
+    if demo_username not in all_job_details:
+        all_job_details[demo_username] = {}
+    if demo_username not in job_queue:
+        job_queue[demo_username] = Queue()
+    if demo_username not in stop_event:
+        stop_event[demo_username] = Event()
+    # Initialize per-user structures for demo_user if not already present
+    if demo_username not in served_job_lock:
+        served_job_lock[demo_username] = Lock()
+    if demo_username not in served_job_evaluations:
+        served_job_evaluations[demo_username] = {}
+    if demo_username not in decisions_lock:
+        decisions_lock[demo_username] = Lock()
+    if demo_username not in apply_to_job_queue:
+        apply_to_job_queue[demo_username] = Queue()
+
+    demo_jobs = []
+    for fname in os.listdir('tests'):
+        if fname.startswith('job_details_debug') and fname.endswith('.txt'):
+            with open(os.path.join('tests', fname), 'r', encoding='utf-8') as f:
+                line = f.read().strip()
+                if line.startswith("Details: "):
+                    job_details = ast.literal_eval(line[len("Details: "):])
+                    demo_jobs.append(job_details)
+    if not demo_jobs:
+        return "No demo job details files found.", 500
+
+    # AI analyze each job (synchronously for demo)
+    ai_results = []
+    import itertools
+    job_counter_local = itertools.count(1000)
+    for i, job in enumerate(demo_jobs):
+        job_id = f"demo_{i}"
+        try:
+            job_evaluator.evaluate_job_fit(job_id, job, job_counter_local, demo_username)
+        except Exception as e:
+            # If error, still queue the job with error message
+            job_data = {
+                'job_id': job_id,
+                'job_details': job,
+                'ai_evaluation': f"Error: {e}"
+            }
+            job_queue.setdefault(demo_username, Queue())
+            job_queue[demo_username].put((i, time.time(), job_data))
+            all_job_details.setdefault(demo_username, {})[job_id] = job
+
+    # Reset accepted jobs for demo
+    user_decisions[demo_username] = []
+
+    # Prepare resume JSON for display
+    import json
+    resume_json = json.dumps(test_data, indent=2)
+    return DEMO_TEMPLATE
 
 def run_app():
     """Run the Flask application with proper host binding."""
