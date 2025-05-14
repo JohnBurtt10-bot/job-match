@@ -232,32 +232,8 @@ async def main(username, password, login_states=None):
                         except Exception as e:
                             logging.info(f"Could not click trust browser button: {e}, continuing anyway")
                         
-                        # Poll for login completion after DUO
-                        start_time = time.time()
-                        while time.time() - start_time < 30:  # 30 second timeout
-                            try:
-                                current_url = page.url
-                                if '/myAccount/dashboard.htm' in current_url:
-                                    if login_states is not None:
-                                        login_states[username] = {
-                                            "ready": True,
-                                            "error": None,
-                                            "duo_required": False
-                                        }
-                                    break
-                            except Exception as e:
-                                logging.debug(f"Polling check error after DUO: {e}")
-                            
-                            await asyncio.sleep(1)  # Wait 1 second before next check
-                        else:
-                            logging.error("Login failed after DUO verification - timeout")
-                            if login_states is not None:
-                                login_states[username] = {
-                                    "ready": False,
-                                    "error": "Login failed after DUO verification - timeout",
-                                    "duo_required": False
-                                }
-                            return
+                        await page.wait_for_url('/myAccount/dashboard.htm', timeout=50000)
+
                     elif status == 'failed':
                         if login_states is not None:
                             login_states[username] = {
