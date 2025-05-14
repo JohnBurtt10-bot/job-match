@@ -428,9 +428,9 @@ def demo():
 
     # Load demo jobs
     demo_jobs = []
-    for fname in os.listdir('tests'):
+    for fname in os.listdir('tests/software'):
         if fname.startswith('job_details_debug') and fname.endswith('.txt'):
-            with open(os.path.join('tests', fname), 'r', encoding='utf-8') as f:
+            with open(os.path.join('tests/software', fname), 'r', encoding='utf-8') as f:
                 line = f.read().strip()
                 if line.startswith("Details: "):
                     job_details = ast.literal_eval(line[len("Details: "):])

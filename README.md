@@ -137,6 +137,46 @@ Deployment is automated via `render.yaml`. On push, Render will:
 
 **Health checks** and **auto-deploy** are enabled.
 
+### Production Infrastructure
+
+#### Hosting
+
+The production instance of this application is hosted on a user-managed EC2 server (Ubuntu) for reliability and security, with regular backups and monitoring. The public domain name is provided and managed by Duckorg.
+
+#### Nginx Reverse Proxy
+
+Nginx is used as a reverse proxy in front of the Flask application. This setup provides several benefits:
+
+- **TLS/SSL Termination:** Nginx handles HTTPS connections, ensuring secure communication between users and the server.
+- **Load Balancing & Security:** Nginx can be configured to limit request rates, block malicious traffic, and serve static files efficiently.
+- **Process Management:** The Flask app runs behind a WSGI server (such as Gunicorn or uWSGI), and Nginx forwards incoming requests to the backend, ensuring smooth operation and better resource management.
+
+#### Deployment Workflow
+
+- The Flask app is deployed on the EC2 instance, typically using Docker for environment consistency.
+- Nginx is configured to listen on ports 80 (HTTP) and 443 (HTTPS), forwarding requests to the Flask backend running on an internal port (e.g., 29000).
+- The `render.yaml` and `Dockerfile` in the repository provide reproducible deployment instructions.
+- For updates, the app can be redeployed using the provided `redeploy.sh` script.
+
+#### Example Nginx Configuration
+
+```nginx
+server {
+    listen 80;
+    server_name your-duckorg-domain.com;
+
+    location / {
+        proxy_pass http://localhost:29000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+> **Note:** For production, always enable HTTPS and use strong TLS certificates. The domain name and DNS are managed by Duckorg.
+
 ---
 
 ## Configuration
