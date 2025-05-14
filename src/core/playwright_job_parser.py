@@ -75,9 +75,6 @@ async def main(username, password, login_states=None):
         if current_state.get("ready", False):
             logging.info(f"User {username} is already logged in")
             return
-        # elif current_state.get("error"):
-        #     logging.info(f"User {username} has a previous login error: {current_state['error']}")
-        #     return
 
     # Initialize login state
     if login_states is not None:
@@ -126,9 +123,28 @@ async def main(username, password, login_states=None):
             # First try to access login page and check for redirection
             await page.goto("https://waterlooworks.uwaterloo.ca/waterloo.htm?action=login")
             
-            # Check if we get redirected to dashboard
-            try:
-                await page.wait_for_url("**/myAccount/dashboard.htm", timeout=10000)
+            # Poll for either dashboard redirect or login form
+            status = None
+            start_time = time.time()
+            while time.time() - start_time < 30:  # 30 second timeout
+                try:
+                    # Check current URL
+                    current_url = page.url
+                    if '/myAccount/dashboard.htm' in current_url:
+                        status = 'dashboard'
+                        break
+                    
+                    # Check for login form
+                    username_input = await page.query_selector("#userNameInput")
+                    if username_input:
+                        status = 'login'
+                        break
+                except Exception as e:
+                    logging.debug(f"Polling check error: {e}")
+                
+                await asyncio.sleep(1)  # Wait 1 second before next check
+
+            if status == 'dashboard':
                 logging.info("Already logged in - redirected to dashboard")
                 if login_states is not None:
                     login_states[username] = {
@@ -145,101 +161,131 @@ async def main(username, password, login_states=None):
                 
                 # Skip login process and continue with job processing
                 await page.goto(JOBS_URL, wait_until="load")
-            except Exception as e:
-                logging.error(f"Error redirecting to dashboard: {e}")
-                # If not redirected, proceed with normal login
-                # Wait for username input and enter username
-                await page.wait_for_selector("#userNameInput", state="visible", timeout=15000)
+            else:
+                # Need to login
                 await page.fill("#userNameInput", username)
-
-                # Click next button
-                await page.wait_for_selector("#nextButton", state="attached", timeout=10000)
                 await page.click("#nextButton")
-
-                # Wait for password input and enter password
-                await page.wait_for_selector("#passwordInput", state="attached", timeout=100000)
                 await page.fill("#passwordInput", password)
-
-                # Click submit button
-                await page.wait_for_selector("#submitButton", state="attached", timeout=10000)
                 await page.click("#submitButton")
 
-                # Check for login success or DUO verification
-                try:
-                    # First try to wait for DUO verification code
+                # Poll for login status (success, DUO, or error)
+                status = None
+                start_time = time.time()
+                while time.time() - start_time < 30:  # 30 second timeout
                     try:
-                        await page.wait_for_selector("div.verification-code", state="attached", timeout=10000)
-                        # If we get here, we have a DUO code
-                        verification_code_el = await page.query_selector("div.verification-code")
-                        verification_code = await verification_code_el.inner_text() if verification_code_el else None
+                        # Check current URL
+                        current_url = page.url
+                        if '/myAccount/dashboard.htm' in current_url or '/myAccount/co-op/coop-postings.htm' in current_url:
+                            status = 'success'
+                            break
+                        
+                        # Check for DUO verification
+                        verification_code = await page.query_selector("div.verification-code")
                         if verification_code:
-                            # Clear any existing codes in the queue
-                            while not duo_code_queue[username].empty():
-                                try:
-                                    duo_code_queue[username].get_nowait()
-                                except:
-                                    pass
-                            # Put the new code in the queue
-                            duo_code_queue[username].put(verification_code)
-                            logging.info(f"Put DUO code in queue for user {username}: {verification_code}")
-                            if login_states is not None:
-                                login_states[username]["duo_required"] = True
-                                login_states[username]["duo_code"] = verification_code  # Store code in login state too
+                            status = 'duo'
+                            break
+                        
+                        # Check for login failure
+                        username_input = await page.query_selector("#userNameInput")
+                        if username_input and await username_input.is_visible():
+                            status = 'failed'
+                            break
+                    except Exception as e:
+                        logging.debug(f"Polling check error: {e}")
+                    
+                    await asyncio.sleep(1)  # Wait 1 second before next check
 
-                        # Click trust browser button
-                        await page.wait_for_selector("#trust-browser-button", state="attached", timeout=15000)
-                        await page.click("#trust-browser-button")
-                    except Exception as duo_error:
-                        logging.error(f"Error waiting for DUO verification: {duo_error}")
-                        # If DUO verification not found, check if we're already logged in
-                        try:
-                            await page.wait_for_selector("a.items.active", state="attached", timeout=3000)
-                            logging.info("Login successful without DUO verification")
-                            if login_states is not None:
-                                login_states[username] = {
-                                    "ready": True,
-                                    "error": None,
-                                    "duo_required": False
-                                }
-                        except Exception as login_error:
-                            logging.error(f"Error waiting for login: {login_error}")
-                            # If neither DUO nor direct login worked, credentials are invalid
-                            if login_states is not None:
-                                login_states[username] = {
-                                    "ready": False,
-                                    "error": "Invalid credentials. Please check your username and password.",
-                                    "duo_required": False
-                                }
-                            logging.error(f"Login failed: {login_error}")
-                            return
-
-                    # If we get here, we're logged in (either through DUO or directly)
-                    if login_states is not None and not login_states[username].get("ready", False):
+                if status == 'success':
+                    logging.info("Login successful")
+                    if login_states is not None:
                         login_states[username] = {
                             "ready": True,
                             "error": None,
                             "duo_required": False
                         }
+                elif status == 'duo':
+                    # Get DUO code
+                    verification_code_el = await page.query_selector("div.verification-code")
+                    verification_code = await verification_code_el.inner_text() if verification_code_el else None
+                    if verification_code:
+                        # Clear any existing codes in the queue
+                        while not duo_code_queue[username].empty():
+                            try:
+                                duo_code_queue[username].get_nowait()
+                            except:
+                                pass
+                        # Put the new code in the queue
+                        duo_code_queue[username].put(verification_code)
+                        logging.info(f"Put DUO code in queue for user {username}: {verification_code}")
+                        if login_states is not None:
+                            login_states[username]["duo_required"] = True
+                            login_states[username]["duo_code"] = verification_code
 
-                    # Get resume details after successful login
-                    try:
-                        resume_result = await get_resume_and_details(username, password, context=context)
-                        if resume_result:
-                            logging.info(f"Successfully retrieved resume details and downloaded resume to {resume_result['resume_path']}")
+                        # Try to click trust browser button if it exists, but continue either way
+                        try:
+                            trust_button = await page.query_selector("#trust-browser-button")
+                            if trust_button:
+                                await trust_button.click()
+                                logging.info("Clicked trust browser button")
+                            else:
+                                logging.info("Trust browser button not found, continuing anyway")
+                        except Exception as e:
+                            logging.info(f"Could not click trust browser button: {e}, continuing anyway")
+                        
+                        # Poll for login completion after DUO
+                        start_time = time.time()
+                        while time.time() - start_time < 30:  # 30 second timeout
+                            try:
+                                current_url = page.url
+                                if '/myAccount/dashboard.htm' in current_url:
+                                    if login_states is not None:
+                                        login_states[username] = {
+                                            "ready": True,
+                                            "error": None,
+                                            "duo_required": False
+                                        }
+                                    break
+                            except Exception as e:
+                                logging.debug(f"Polling check error after DUO: {e}")
+                            
+                            await asyncio.sleep(1)  # Wait 1 second before next check
                         else:
-                            logging.warning("Failed to retrieve resume details")
-                    except Exception as resume_error:
-                        logging.error(f"Error getting resume details: {resume_error}")
+                            logging.error("Login failed after DUO verification - timeout")
+                            if login_states is not None:
+                                login_states[username] = {
+                                    "ready": False,
+                                    "error": "Login failed after DUO verification - timeout",
+                                    "duo_required": False
+                                }
+                            return
+                    elif status == 'failed':
+                        if login_states is not None:
+                            login_states[username] = {
+                                "ready": False,
+                                "error": "Invalid credentials. Please check your username and password.",
+                                "duo_required": False
+                            }
+                        logging.error("Login failed - Invalid credentials")
+                        return
+                    else:
+                        if login_states is not None:
+                            login_states[username] = {
+                                "ready": False,
+                                "error": "Login timeout - No response received",
+                                "duo_required": False
+                            }
+                        logging.error("Login timeout - No response received")
+                        return
 
-                except Exception as e:
-                    if login_states is not None:
-                        login_states[username] = {
-                            "ready": False,
-                            "error": f"An error occurred during login: {str(e)}",
-                            "duo_required": False
-                        }
-                    logging.error(f"Login failed: {e}")
-                    return
+                # Get resume details after successful login
+                try:
+                    resume_result = await get_resume_and_details(username, password, context=context)
+                    if resume_result:
+                        logging.info(f"Successfully retrieved resume details and downloaded resume to {resume_result['resume_path']}")
+                    else:
+                        logging.warning("Failed to retrieve resume details")
+                except Exception as resume_error:
+                    logging.error(f"Error getting resume details: {resume_error}")
 
                 # Continue with the rest of the job processing...
                 await page.goto(JOBS_URL, wait_until="load")
