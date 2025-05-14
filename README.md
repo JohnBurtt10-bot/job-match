@@ -3,11 +3,11 @@
 ## 🚀 Quick Start
 
 **Waterloo Students:**
-- Use the main app here: [https://job-match.onrender.com/](https://job-match.onrender.com/)  
+- Use the main app here: [https://job-match.onrender.com/](http://job-match.duckdns.org/login)  
 (Log in with your WaterlooWorks credentials to see your real jobs, AI-ranked and swipable!)
 
 **Just want to try it?**
-- Try the live demo (no login required): [https://job-match.onrender.com/demo](https://job-match.onrender.com/demo)
+- Try the live demo (no login required): [https://job-match.onrender.com/demo](http://job-match.duckdns.org/demo)
   - The demo uses sample resume and job data, but shows the full AI-powered swiping experience.
 
 ---
@@ -133,7 +133,6 @@ Nginx is used as a reverse proxy in front of the Flask application. This setup p
 
 - The Flask app is deployed on the EC2 instance, typically using Docker for environment consistency.
 - Nginx is configured to listen on ports 80 (HTTP) and 443 (HTTPS), forwarding requests to the Flask backend running on an internal port (e.g., 29000).
-- The `render.yaml` and `Dockerfile` in the repository provide reproducible deployment instructions.
 - For updates, the app can be redeployed using the provided `redeploy.sh` script.
 
 #### Example Nginx Configuration
