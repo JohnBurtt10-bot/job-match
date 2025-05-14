@@ -75,9 +75,9 @@ async def main(username, password, login_states=None):
         if current_state.get("ready", False):
             logging.info(f"User {username} is already logged in")
             return
-        elif current_state.get("error"):
-            logging.info(f"User {username} has a previous login error: {current_state['error']}")
-            return
+        # elif current_state.get("error"):
+        #     logging.info(f"User {username} has a previous login error: {current_state['error']}")
+        #     return
 
     # Initialize login state
     if login_states is not None:
