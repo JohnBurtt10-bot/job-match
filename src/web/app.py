@@ -26,6 +26,7 @@ from threading import Lock
 from src.utils.evaluation_parser import extract_score_salary_category
 from src.core import job_evaluator
 from threading import Event
+import uuid  # Add this at the top with other imports
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]: %(message)s")
 
@@ -381,11 +382,15 @@ def retry_login():
 
 @app.route('/demo')
 def demo():
-    # Use a special username for the demo session
-    demo_username = 'demo_user'
+    # Generate a unique session ID for this demo instance
+    demo_session_id = str(uuid.uuid4())
+    session['demo_session_id'] = demo_session_id
+    
+    # Initialize all necessary data structures for this demo session
+    demo_username = f'demo_user_{demo_session_id}'
     session['username'] = demo_username
 
-    # Only queue demo jobs if not already queued for this session
+    # Initialize all per-user structures for this demo session
     if demo_username not in user_decisions:
         user_decisions[demo_username] = []
     if demo_username not in all_job_details:
@@ -394,7 +399,6 @@ def demo():
         job_queue[demo_username] = Queue()
     if demo_username not in stop_event:
         stop_event[demo_username] = Event()
-    # Initialize per-user structures for demo_user if not already present
     if demo_username not in served_job_lock:
         served_job_lock[demo_username] = Lock()
     if demo_username not in served_job_evaluations:
@@ -404,6 +408,25 @@ def demo():
     if demo_username not in apply_to_job_queue:
         apply_to_job_queue[demo_username] = Queue()
 
+    # Clear any existing data for this demo session
+    user_decisions[demo_username] = []
+    all_job_details[demo_username] = {}
+    while not job_queue[demo_username].empty():
+        try:
+            job_queue[demo_username].get_nowait()
+            job_queue[demo_username].task_done()
+        except:
+            pass
+    while not apply_to_job_queue[demo_username].empty():
+        try:
+            apply_to_job_queue[demo_username].get_nowait()
+            apply_to_job_queue[demo_username].task_done()
+        except:
+            pass
+    served_job_evaluations[demo_username] = {}
+    stop_event[demo_username].clear()
+
+    # Load demo jobs
     demo_jobs = []
     for fname in os.listdir('tests'):
         if fname.startswith('job_details_debug') and fname.endswith('.txt'):
@@ -416,11 +439,10 @@ def demo():
         return "No demo job details files found.", 500
 
     # AI analyze each job (synchronously for demo)
-    ai_results = []
     import itertools
     job_counter_local = itertools.count(1000)
     for i, job in enumerate(demo_jobs):
-        job_id = f"demo_{i}"
+        job_id = f"demo_{demo_session_id}_{i}"
         try:
             job_evaluator.evaluate_job_fit(job_id, job, job_counter_local, demo_username)
         except Exception as e:
@@ -430,17 +452,57 @@ def demo():
                 'job_details': job,
                 'ai_evaluation': f"Error: {e}"
             }
-            job_queue.setdefault(demo_username, Queue())
             job_queue[demo_username].put((i, time.time(), job_data))
-            all_job_details.setdefault(demo_username, {})[job_id] = job
-
-    # Reset accepted jobs for demo
-    user_decisions[demo_username] = []
+            all_job_details[demo_username][job_id] = job
 
     # Prepare resume JSON for display
     import json
     resume_json = json.dumps(test_data, indent=2)
     return DEMO_TEMPLATE
+
+@app.route('/demo_cleanup', methods=['POST'])
+def demo_cleanup():
+    """Clean up demo session data when user leaves the page."""
+    demo_session_id = session.get('demo_session_id')
+    if demo_session_id:
+        demo_username = f'demo_user_{demo_session_id}'
+        
+        # Clean up all data structures for this demo session
+        if demo_username in user_decisions:
+            del user_decisions[demo_username]
+        if demo_username in all_job_details:
+            del all_job_details[demo_username]
+        if demo_username in job_queue:
+            while not job_queue[demo_username].empty():
+                try:
+                    job_queue[demo_username].get_nowait()
+                    job_queue[demo_username].task_done()
+                except:
+                    pass
+            del job_queue[demo_username]
+        if demo_username in stop_event:
+            stop_event[demo_username].set()
+            del stop_event[demo_username]
+        if demo_username in served_job_lock:
+            del served_job_lock[demo_username]
+        if demo_username in served_job_evaluations:
+            del served_job_evaluations[demo_username]
+        if demo_username in decisions_lock:
+            del decisions_lock[demo_username]
+        if demo_username in apply_to_job_queue:
+            while not apply_to_job_queue[demo_username].empty():
+                try:
+                    apply_to_job_queue[demo_username].get_nowait()
+                    apply_to_job_queue[demo_username].task_done()
+                except:
+                    pass
+            del apply_to_job_queue[demo_username]
+        
+        # Clear session data
+        session.pop('demo_session_id', None)
+        session.pop('username', None)
+    
+    return jsonify({"status": "success"})
 
 def run_app():
     """Run the Flask application with proper host binding."""

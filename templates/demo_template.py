@@ -258,7 +258,31 @@ DEMO_TEMPLATE = """
 
     <script>
         let currentJobData = null;
-        // No login logic in demo mode
+        // Add cleanup on page unload
+        window.addEventListener('beforeunload', async function(e) {
+            try {
+                await fetch('/demo_cleanup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            } catch (error) {
+                console.error('Error during cleanup:', error);
+            }
+        });
+
+        // Add cleanup on page visibility change (for mobile browsers)
+        document.addEventListener('visibilitychange', async function() {
+            if (document.visibilityState === 'hidden') {
+                try {
+                    await fetch('/demo_cleanup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                } catch (error) {
+                    console.error('Error during cleanup:', error);
+                }
+            }
+        });
 
         function escapeHtml(unsafe) {
             if (unsafe === null || unsafe === undefined) return '';
