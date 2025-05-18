@@ -41,8 +41,6 @@ As a student at the University of Waterloo, I noticed a persistent gap in how AI
 - **AI/ML:** OpenAI API for job fit evaluation
 - **PDF Parsing:** PyPDF2 (with optional OCR support via Tesseract and pdf2image)
 - **Data Storage:** Diskcache (for job details and user sessions)
-- **Containerization:** Docker
-- **Deployment:** Render.com
 
 ### Key Modules
 
