@@ -496,6 +496,13 @@ DEMO_TEMPLATE = """
                  .replace(/'/g, "&#039;");
         }
 
+        function decodeHtmlEntities(text) {
+            if (!text) return '';
+            const textarea = document.createElement('textarea');
+            textarea.innerHTML = text;
+            return textarea.value;
+        }
+
         function displayJob(data) {
             const jobDetailsDiv = document.getElementById('job-details');
             const jobTitleH2 = document.getElementById('job-title');
@@ -503,8 +510,8 @@ DEMO_TEMPLATE = """
 
             if (data.job_details) {
                 currentJobData = data;
-                let title = escapeHtml(data.job_details['Job Title']);
-                let company = data.job_details['Company'] ? escapeHtml(data.job_details['Company']) : '';
+                let title = decodeHtmlEntities(data.job_details['Job Title']);
+                let company = data.job_details['Company'] ? decodeHtmlEntities(data.job_details['Company']) : '';
                 if (company) {
                     jobTitleH2.textContent = `${title} @ ${company}`;
                 } else {
@@ -544,8 +551,10 @@ DEMO_TEMPLATE = """
 
         async function fetchJob() {
             const jobDetailsDiv = document.getElementById('job-details');
+            const jobTitleH2 = document.getElementById('job-title');
             const buttons = document.querySelectorAll('.buttons button');
             jobDetailsDiv.innerHTML = '<p class="loading">Loading next job...</p>';
+            jobTitleH2.textContent = 'Loading...';
             buttons.forEach(btn => btn.disabled = true);
 
             try {
@@ -568,6 +577,7 @@ DEMO_TEMPLATE = """
                     displayJob(data);
                     return;
                 } else if (data.message === "Processing jobs, please wait...") {
+                    jobTitleH2.textContent = 'Processing...';
                     jobDetailsDiv.innerHTML = '<p class="loading">Processing jobs, please wait...</p>';
                     setTimeout(fetchJob, 3000);
                     return;
