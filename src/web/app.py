@@ -236,8 +236,15 @@ def get_job():
 
     try:
         priority, _, job_data = job_queue[username].get_nowait()
+        
+        # Check if this is the final message
+        if job_data.get('is_final', False):
+            stop_event[username].set()  # Set the stop event when we receive the final message
+            logging.info(f"Received final message for user {username}, setting stop event")
+            return jsonify(job_data)
+            
         job_id = job_data.get('job_id')
-        ai_evaluation = job_data.get('ai_evaluation') # Get evaluation from the job data
+        ai_evaluation = job_data.get('ai_evaluation')
 
         logging.info(f"Serving job/message from queue (Priority: {priority}): {job_data.get('job_id', job_data.get('message'))}")
 
@@ -248,13 +255,11 @@ def get_job():
                 logging.debug(f"Stored evaluation for job {job_id}. Served count: {len(served_job_evaluations)}")
 
         job_queue[username].task_done()
-        if "message" in job_data and job_data["message"] == "No more jobs found.":
-            stop_event[username].set()
         return jsonify(job_data)
     except Empty:
         if stop_event[username].is_set() and job_queue[username].empty():
             logging.info("Processing finished and queue empty.")
-            return jsonify({"message": "All jobs processed."})
+            return jsonify({"message": "All jobs processed.", "is_final": True})
         else:
             logging.info("Job queue is empty, waiting for processor...")
             return jsonify({"message": "Processing jobs, please wait..."}), 202
@@ -403,29 +408,49 @@ def evaluate_demo_jobs_thread(demo_username, demo_session_id, demo_jobs):
     if demo_username not in all_job_details:
         all_job_details[demo_username] = {}
     
-    for i, job in enumerate(demo_jobs):
-        # Check if we should stop processing
-        if demo_username in stop_event and stop_event[demo_username].is_set():
-            logging.info(f"Stopping evaluation thread for demo session {demo_session_id}")
-            return
-            
-        job_id = f"demo_{demo_session_id}_{i}"
-        try:
-            # Store job details before evaluation to prevent race condition
-            all_job_details[demo_username][job_id] = job
-            job_evaluator.evaluate_job_fit(job_id, job, job_counter_local, demo_username)
-        except Exception as e:
-            # If error, still queue the job with error message
-            job_data = {
-                'job_id': job_id,
-                'job_details': job,
-                'ai_evaluation': f"Error: {e}"
-            }
+    try:
+        for i, job in enumerate(demo_jobs):
+            # Check if we should stop processing
+            if demo_username in stop_event and stop_event[demo_username].is_set():
+                logging.info(f"Stopping evaluation thread for demo session {demo_session_id}")
+                return
+                
+            job_id = f"demo_{demo_session_id}_{i}"
             try:
-                job_queue[demo_username].put((i, time.time(), job_data))
-            except Exception as queue_error:
-                logging.error(f"Error queueing job {job_id}: {queue_error}")
-                continue
+                # Store job details before evaluation to prevent race condition
+                all_job_details[demo_username][job_id] = job
+                job_evaluator.evaluate_job_fit(job_id, job, job_counter_local, demo_username)
+            except Exception as e:
+                # If error, still queue the job with error message
+                job_data = {
+                    'job_id': job_id,
+                    'job_details': job,
+                    'ai_evaluation': f"Error: {e}"
+                }
+                try:
+                    job_queue[demo_username].put((i, time.time(), job_data))
+                except Exception as queue_error:
+                    logging.error(f"Error queueing job {job_id}: {queue_error}")
+                    continue
+
+        # After all jobs are processed, add a final message to the queue
+        if demo_username in job_queue:
+            final_message = {
+                'message': "All jobs processed.",
+                'is_final': True  # Add a flag to indicate this is the final message
+            }
+            job_queue[demo_username].put((len(demo_jobs), time.time(), final_message))
+            logging.info(f"Added final message to queue for demo session {demo_session_id}")
+            
+    except Exception as e:
+        logging.error(f"Error in demo evaluation thread: {e}", exc_info=True)
+        # Even if there's an error, try to add the final message
+        if demo_username in job_queue:
+            error_message = {
+                'message': "Error processing demo jobs. Please try again.",
+                'is_final': True
+            }
+            job_queue[demo_username].put((len(demo_jobs), time.time(), error_message))
 
 @app.route('/demo')
 def demo():

@@ -21,6 +21,11 @@ DEMO_TEMPLATE = """
             --success-hover: #45a049;
             --reject-color: #f44336;
             --reject-hover: #da190b;
+            --demo-banner-bg: #e3f2fd;
+            --demo-banner-border: #bbdefb;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
 
         * {
@@ -33,70 +38,197 @@ DEMO_TEMPLATE = """
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             background: var(--bg-color);
             margin: 0;
-            padding: 1rem;
-            min-height: 100vh;
+            padding: 0.75rem;
+            height: 100vh;
             color: var(--text-color);
-            line-height: 1.5;
+            line-height: 1.4;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .demo-banner {
+            background: var(--demo-banner-bg);
+            border: 1px solid var(--demo-banner-border);
+            padding: 0.625rem 1rem;
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            box-shadow: var(--shadow-sm);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .demo-banner h2 {
+            color: var(--primary-color);
+            font-size: 1.125rem;
+            margin: 0;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .demo-banner-content {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem 1rem;
+            align-items: center;
+            flex: 1;
+        }
+
+        .demo-banner p {
+            color: var(--text-color);
+            font-size: 0.875rem;
+            line-height: 1.3;
+            margin: 0;
+            display: inline;
+        }
+
+        .demo-banner p:not(:last-child)::after {
+            content: "•";
+            margin-left: 1rem;
+            color: var(--primary-color);
         }
 
         .job-card { 
             background: var(--card-bg);
-            padding: 2rem;
-            border-radius: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            padding: 0.75rem;
+            border-radius: 8px;
+            box-shadow: var(--shadow-lg);
             text-align: center;
             width: 95%;
-            max-width: 1100px;
+            max-width: 1000px;
             margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            height: 90vh;
+            overflow: hidden;
+        }
+
+        h2 { 
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-color);
+            flex-shrink: 0;
+        }
+
+        .map-stats-container { 
+            display: flex;
+            gap: 0.75rem;
+            background: var(--card-bg);
+            padding: 0.75rem;
+            border-radius: 8px;
+            box-shadow: var(--shadow-md);
+            flex-shrink: 0;
+            flex: 0.5;
+        }
+
+        #stats-container { 
+            flex: 1;
+            min-width: 200px;
+            max-width: 280px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-color);
+            padding: 0.5rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            min-height: 0;
+            aspect-ratio: 2.4;
+            max-height: 180px;
+        }
+
+        #heatmap-container { 
+            flex: 1.5;
+            min-width: 200px;
+            background: var(--bg-color);
+            padding: 0.5rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
         }
 
-        h2 { 
-            margin: 0 0 1.5rem 0;
-            font-size: 1.75rem;
-            font-weight: 600;
-            color: var(--text-color);
+        #heatmap { 
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+            flex: 1;
+        }
+
+        #categoryChart { 
+            width: 100% !important;
+            height: 100% !important;
+            flex: 1;
+            min-height: 0;
+            max-height: 160px;
+            display: flex;
+            align-items: center;
+        }
+
+        .chartjs-render-monitor, .chartjs-size-monitor, #categoryChart {
+            font-size: 0.75rem !important;
+            height: 100% !important;
+            display: flex;
+            align-items: center;
+        }
+
+        .chartjs-render-monitor text, .chartjs-render-monitor .legend, .chartjs-render-monitor .label {
+            font-size: 0.6875rem !important;
+        }
+
+        .job-details-container {
+            display: flex;
+            flex-direction: column;
+            flex: 0.45;
+            min-height: 0;
+            gap: 0.75rem;
         }
 
         .job-details { 
-            margin-bottom: 1.5rem;
             text-align: left;
-            max-height: 60vh;
+            flex: 1;
             overflow-y: auto;
             border: 1px solid var(--border-color);
-            padding: 1.25rem;
+            padding: 0.75rem;
             background-color: var(--card-bg);
-            border-radius: 8px;
+            border-radius: 6px;
+            box-shadow: var(--shadow-sm);
+            min-height: 0;
+            max-height: 40vh;
         }
 
         .job-details p { 
-            margin: 0.5rem 0;
-        }
-
-        .job-details strong { 
-            color: var(--text-color);
-            font-weight: 600;
+            margin: 0.375rem 0;
+            font-size: 0.875rem;
+            line-height: 1.3;
         }
 
         .buttons { 
-            margin-top: auto;
-            padding-top: 1.5rem;
             display: flex;
-            justify-content: space-around;
-            gap: 1rem;
+            justify-content: center;
+            gap: 0.75rem;
+            flex-shrink: 0;
         }
 
         .buttons button { 
-            padding: 0.875rem 1.5rem;
-            font-size: 1rem;
+            padding: 0.625rem 1.25rem;
+            font-size: 0.9375rem;
             font-weight: 500;
             cursor: pointer;
             border: none;
-            border-radius: 8px;
+            border-radius: 6px;
             transition: all 0.2s ease;
             flex: 1;
-            max-width: 200px;
+            max-width: 180px;
+            box-shadow: var(--shadow-md);
         }
 
         .accept { 
@@ -106,7 +238,8 @@ DEMO_TEMPLATE = """
 
         .accept:hover { 
             background-color: var(--success-hover);
-            transform: translateY(-1px);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
         }
 
         .reject { 
@@ -116,107 +249,188 @@ DEMO_TEMPLATE = """
 
         .reject:hover { 
             background-color: var(--reject-hover);
-            transform: translateY(-1px);
-        }
-
-        .loading { 
-            color: #64748b;
-            font-size: 1.125rem;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
         }
 
         pre { 
             white-space: pre-wrap;
             word-wrap: break-word;
-            font-size: 0.9375rem;
+            font-size: 0.8125rem;
             font-family: 'SF Mono', 'Consolas', monospace;
             background: var(--bg-color);
-            padding: 1rem;
-            border-radius: 8px;
+            padding: 0.625rem;
+            border-radius: 6px;
             border: 1px solid var(--border-color);
+            margin: 0.375rem 0;
+            line-height: 1.3;
         }
 
         .error-message { 
             color: var(--error-color);
             background-color: var(--error-bg);
-            padding: 1rem;
+            padding: 0.625rem;
+            border-radius: 6px;
+            margin: 0.375rem 0;
+            border: 1px solid #ffcdd2;
+            font-size: 0.875rem;
+        }
+
+        .loading { 
+            color: #64748b;
+            font-size: 0.9375rem;
+            text-align: center;
+            padding: 0.625rem;
+        }
+
+        .no-more-jobs {
+            text-align: center;
+            padding: 2rem;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             margin: 1rem 0;
-            border: 1px solid #ffcdd2;
+        }
+
+        .no-more-jobs h3 {
+            color: var(--primary-color);
+            font-size: 1.25rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .no-more-jobs p {
+            color: var(--text-color);
             font-size: 0.9375rem;
-        }
-
-        .map-stats-container { 
-            display: flex;
-            gap: 1.5rem;
-            margin-bottom: 1.5rem;
-            background: var(--card-bg);
-            padding: 1.5rem;
-            border-radius: 12px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        }
-
-        #stats-container { 
-            flex: 1;
-            min-width: 180px;
-            max-width: 260px;
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-        }
-
-        #heatmap-container { 
-            flex: 2;
-            min-width: 200px;
-        }
-
-        #heatmap { 
-            height: 300px;
-            width: 100%;
-            margin-bottom: 0;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-
-        #categoryChart { 
-            width: 100% !important;
-            height: 150px !important;
-        }
-
-        .chartjs-render-monitor, .chartjs-size-monitor, #categoryChart {
-            font-size: 0.75rem !important;
-        }
-
-        .chartjs-render-monitor text, .chartjs-render-monitor .legend, .chartjs-render-monitor .label {
-            font-size: 0.625rem !important;
+            margin: 0.5rem 0;
+            line-height: 1.4;
         }
 
         @media (max-width: 900px) {
+            .demo-banner {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+                padding: 0.75rem;
+            }
+            .demo-banner-content {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.25rem;
+            }
+            .demo-banner p {
+                display: block;
+            }
+            .demo-banner p:not(:last-child)::after {
+                display: none;
+            }
+            .job-card {
+                height: 95vh;
+            }
             .map-stats-container { 
                 flex-direction: column;
-                gap: 1rem;
+                gap: 0.5rem;
+                padding: 0.5rem;
+                flex: 0.6;
             }
-            #stats-container, #heatmap-container { 
-                width: 100%;
-                max-width: none;
+            #stats-container {
+                aspect-ratio: 2.8;
+                min-height: 140px;
+                max-height: 170px;
             }
-            #heatmap { 
-                height: 250px;
+            #heatmap-container {
+                min-height: 180px;
+            }
+            .job-details-container {
+                flex: 0.4;
+            }
+            .job-details {
+                max-height: 35vh;
+            }
+            #categoryChart {
+                max-height: 140px;
             }
         }
 
         @media (max-width: 600px) {
+            body {
+                padding: 0.375rem;
+            }
+            .demo-banner {`
+                padding: 0.625rem;
+            }
             .job-card {
-                padding: 1.25rem;
+                padding: 0.5rem;
+                width: 100%;
+                height: 100vh;
+            }
+            .buttons { 
+                flex-direction: column;
+                gap: 0.5rem;
             }
             .buttons button { 
-                padding: 0.75rem 1rem;
-                font-size: 0.9375rem;
+                max-width: none;
+                padding: 0.625rem 1rem;
+                font-size: 0.875rem;
             }
             .map-stats-container { 
-                padding: 1rem;
+                flex: 0.7;
             }
-            #heatmap { 
-                height: 180px;
+            #heatmap-container {
+                min-height: 160px;
+            }
+            .job-details-container {
+                flex: 0.3;
+            }
+            .job-details {
+                max-height: 30vh;
+            }
+            #stats-container {
+                aspect-ratio: 3;
+                min-height: 120px;
+                max-height: 150px;
+            }
+            #categoryChart {
+                max-height: 120px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .demo-banner {
+                padding: 0.625rem;
+            }
+            .job-card {
+                padding: 0.5rem;
+                width: 100%;
+                height: 100vh;
+            }
+            .buttons { 
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            .buttons button { 
+                max-width: none;
+                padding: 0.625rem 1rem;
+                font-size: 0.875rem;
+            }
+            .map-stats-container { 
+                flex: 0.7;
+            }
+            #heatmap-container {
+                min-height: 160px;
+            }
+            .job-details-container {
+                flex: 0.3;
+            }
+            .job-details {
+                max-height: 30vh;
+            }
+            #stats-container {
+                aspect-ratio: 3;
+                min-height: 120px;
+                max-height: 150px;
+            }
+            #categoryChart {
+                max-height: 120px;
             }
         }
     </style>
@@ -227,15 +441,11 @@ DEMO_TEMPLATE = """
 </head>
 <body>
     <!-- DEMO DISCLAIMER BANNER -->
-    <div style="background:#e3f2fd;padding:1.5rem;border-radius:10px;margin-bottom:2rem;">
-        <h2>Demo Mode</h2>
-        <p>
-            This is a live demo of the Job Match system. The resume and job details shown below are <b>sample data</b>.<br>
-            <b>No login or real WaterlooWorks scraping is happening.</b><br>
-            <b>The resume used for this demo is my own (the creator's) resume.</b><br>
-            The AI is evaluating each job for fit using this resume, and you can swipe through jobs, accept/reject, and see a live summary.<br>
-            Accepted/rejected jobs will be categorized and mapped below as you interact.
-        </p>
+    <div class="demo-banner">
+        <h2>✨ Demo Mode</h2>
+        <div class="demo-banner-content">
+            <p>Welcome to the Job Match system demo! This is a <b>sample data</b> demonstration using <b>my own (the creator's) resume</b>. <b>No real WaterlooWorks scraping is happening</b> - the AI is evaluating each job for fit using this resume, and you can swipe through jobs, accept/reject, and see a live summary of your decisions above.</p>
+        </div>
     </div>
     <div class="job-card">
         <div class="map-stats-container">
@@ -247,12 +457,14 @@ DEMO_TEMPLATE = """
             </div>
         </div>
         <h2 id="job-title">Job Details</h2>
-        <div class="job-details" id="job-details">
-            <p class="loading">Initializing and loading first job...</p>
-        </div>
-        <div class="buttons">
-            <button class="reject" onclick="makeDecision('reject')" disabled>Reject</button>
-            <button class="accept" onclick="makeDecision('accept')" disabled>Accept</button>
+        <div class="job-details-container">
+            <div class="job-details" id="job-details">
+                <p class="loading">Initializing and loading first job...</p>
+            </div>
+            <div class="buttons">
+                <button class="reject" onclick="makeDecision('reject')" disabled>Reject</button>
+                <button class="accept" onclick="makeDecision('accept')" disabled>Apply</button>
+            </div>
         </div>
     </div>
 
@@ -308,9 +520,20 @@ DEMO_TEMPLATE = """
                 jobDetailsDiv.innerHTML = detailsHtml;
                 buttons.forEach(btn => btn.disabled = false);
             } else if (data.message) {
-                jobTitleH2.textContent = 'Status';
-                jobDetailsDiv.innerHTML = `<p class="loading">${escapeHtml(data.message)}</p>`;
-                buttons.forEach(btn => btn.disabled = true);
+                if (data.message === "All jobs processed.") {
+                    jobTitleH2.textContent = 'Demo Complete';
+                    jobDetailsDiv.innerHTML = `
+                        <div class="no-more-jobs">
+                            <h3>✨ Demo Session Complete</h3>
+                            <p>You've gone through all the available demo jobs!</p>
+                            <p>Feel free to refresh the page to start a new demo session, or check out the statistics below to see your decisions.</p>
+                        </div>`;
+                    buttons.forEach(btn => btn.disabled = true);
+                } else {
+                    jobTitleH2.textContent = 'Status';
+                    jobDetailsDiv.innerHTML = `<p class="loading">${escapeHtml(data.message)}</p>`;
+                    buttons.forEach(btn => btn.disabled = true);
+                }
             } else {
                 jobTitleH2.textContent = 'Error';
                 jobDetailsDiv.innerHTML = '<p class="loading">Error: Received unexpected data.</p>';
@@ -322,8 +545,8 @@ DEMO_TEMPLATE = """
         async function fetchJob() {
             const jobDetailsDiv = document.getElementById('job-details');
             const buttons = document.querySelectorAll('.buttons button');
-            jobDetailsDiv.innerHTML = '<p class="loading">Loading next job...</p>'; // Show loading state
-            buttons.forEach(btn => btn.disabled = true); // Disable buttons while loading
+            jobDetailsDiv.innerHTML = '<p class="loading">Loading next job...</p>';
+            buttons.forEach(btn => btn.disabled = true);
 
             try {
                 const response = await fetch('/get_job');
@@ -331,9 +554,7 @@ DEMO_TEMPLATE = """
                     if (response.status === 202) {
                         const data = await response.json();
                         if (data.message === "All jobs processed.") {
-                            // If all jobs are processed, start polling for new ones
-                            jobDetailsDiv.innerHTML = '<p class="loading">Waiting for new jobs to become available...</p>';
-                            setTimeout(fetchJob, 3000); // Poll every 3 seconds
+                            displayJob(data);
                             return;
                         }
                         displayJob(data);
@@ -344,13 +565,11 @@ DEMO_TEMPLATE = """
                 }
                 const data = await response.json();
                 if (data.message === "All jobs processed.") {
-                    // If all jobs are processed, start polling for new ones
-                    jobDetailsDiv.innerHTML = '<p class="loading">Waiting for new jobs to become available...</p>';
-                    setTimeout(fetchJob, 3000); // Poll every 3 seconds
+                    displayJob(data);
                     return;
                 } else if (data.message === "Processing jobs, please wait...") {
                     jobDetailsDiv.innerHTML = '<p class="loading">Processing jobs, please wait...</p>';
-                    setTimeout(fetchJob, 3000); // Poll every 3 seconds
+                    setTimeout(fetchJob, 3000);
                     return;
                 }
                 displayJob(data);
@@ -358,7 +577,7 @@ DEMO_TEMPLATE = """
                 console.error('Error fetching job:', error);
                 document.getElementById('job-title').textContent = 'Error';
                 jobDetailsDiv.innerHTML = '<p class="loading">Error loading job. Retrying in 3 seconds...</p>';
-                setTimeout(fetchJob, 3000); // Retry on error after 3 seconds
+                setTimeout(fetchJob, 3000);
                 buttons.forEach(btn => btn.disabled = true);
             }
         }
